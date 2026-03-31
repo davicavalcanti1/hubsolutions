@@ -5,6 +5,8 @@ import companiesRoutes   from "./routes/companies.js";
 import modulesRoutes     from "./routes/modules.js";
 import invitationsRoutes from "./routes/invitations.js";
 import adminRoutes       from "./routes/admin.js";
+import developerRoutes   from "./routes/developer.js";
+import tenantHubRoutes   from "./routes/tenantHub.js";
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +19,8 @@ app.use("/api/companies",   companiesRoutes);
 app.use("/api/modules",     modulesRoutes);
 app.use("/api/invitations", invitationsRoutes);
 app.use("/api/admin",       adminRoutes);
+app.use("/api/developer",   developerRoutes);
+app.use("/api/hub",         tenantHubRoutes);
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
