@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { LandingPage } from "@/features/landing/LandingPage";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { RegisterPage } from "@/features/auth/pages/RegisterPage";
 import { AcceptInvitePage } from "@/features/auth/pages/AcceptInvitePage";
@@ -39,8 +40,8 @@ function AppRoutes() {
       <Route path="/hub" element={<ProtectedRoute><HubDashboard /></ProtectedRoute>} />
       <Route path="/hub/settings" element={<ProtectedRoute><CompanySettingsPage /></ProtectedRoute>} />
       <Route path="/hub/settings/modules" element={<ProtectedRoute><CompanySettingsPage /></ProtectedRoute>} />
-      <Route path="/" element={<Navigate to="/hub" replace />} />
-      <Route path="*" element={<Navigate to="/hub" replace />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
