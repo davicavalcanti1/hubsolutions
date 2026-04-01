@@ -25,15 +25,15 @@ function StatCard({ label, value, sub, icon: Icon, accent = false }: {
   icon: React.ComponentType<{ className?: string }>; accent?: boolean;
 }) {
   return (
-    <div className={`rounded-2xl border p-5 ${accent ? "border-lime-400/20 bg-lime-400/[0.05]" : "border-white/[0.07] bg-[#0d0d0d]"}`}>
+    <div className={`rounded-2xl border p-5 bg-card ${accent ? "border-primary/30" : "border-border"}`}>
       <div className="flex items-start justify-between mb-3">
-        <p className="text-xs font-medium text-white/40">{label}</p>
-        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${accent ? "bg-lime-400/15 border border-lime-400/25" : "bg-white/[0.04] border border-white/[0.08]"}`}>
-          <Icon className={`h-4 w-4 ${accent ? "text-lime-400" : "text-white/40"}`} />
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${accent ? "bg-primary/10 border border-primary/20" : "bg-muted border border-border"}`}>
+          <Icon className={`h-4 w-4 ${accent ? "text-primary" : "text-muted-foreground"}`} />
         </div>
       </div>
-      <p className={`text-3xl font-black tracking-tight ${accent ? "text-lime-400" : "text-white"}`}>{value}</p>
-      {sub && <p className="text-xs text-white/30 mt-1">{sub}</p>}
+      <p className={`text-3xl font-black tracking-tight ${accent ? "text-primary" : "text-foreground"}`}>{value}</p>
+      {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
     </div>
   );
 }
@@ -44,6 +44,13 @@ function bytes(n: number) {
   if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`;
   return `${(n / 1024 ** 3).toFixed(2)} GB`;
 }
+
+const PLAN_BADGE: Record<string, string> = {
+  pro:        "bg-primary/10 text-primary",
+  enterprise: "bg-violet-500/10 text-violet-600",
+  starter:    "bg-sky-500/10 text-sky-600",
+  free:       "bg-muted text-muted-foreground",
+};
 
 export function DevDashboard() {
   const [ov, setOv]           = useState<Overview | null>(null);
@@ -92,7 +99,7 @@ export function DevDashboard() {
         id:             t.id,
         name:           t.name,
         slug:           t.slug,
-        primary_color:  t.primary_color ?? "#a3e635",
+        primary_color:  t.primary_color ?? "#3b82f6",
         active:         t.active,
         created_at:     t.created_at,
         plan_name:      (t.plans as any)?.name ?? "free",
@@ -111,16 +118,16 @@ export function DevDashboard() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
-      <div className="w-5 h-5 border-2 border-lime-400/30 border-t-lime-400 rounded-full animate-spin" />
+      <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
     </div>
   );
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-8">
-        <p className="text-xs font-semibold text-lime-400 uppercase tracking-[0.2em] mb-1">Painel Developer</p>
-        <h1 className="text-2xl font-black">Visão Geral</h1>
-        <p className="text-white/30 text-sm mt-1">Estado em tempo real da plataforma</p>
+        <p className="text-xs font-semibold text-primary uppercase tracking-[0.2em] mb-1">Painel Developer</p>
+        <h1 className="text-2xl font-black text-foreground">Visão Geral</h1>
+        <p className="text-muted-foreground text-sm mt-1">Estado em tempo real da plataforma</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -136,33 +143,29 @@ export function DevDashboard() {
         <StatCard label="Em planejamento"     value={ov?.planned_features  ?? 0} icon={Star} />
       </div>
 
-      <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
-          <h2 className="font-semibold text-sm">Empresas recentes</h2>
-          <Link to="/developer/tenants" className="flex items-center gap-1 text-xs text-lime-400 hover:text-lime-300 transition-colors">
+      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="font-semibold text-sm text-foreground">Empresas recentes</h2>
+          <Link to="/developer/tenants" className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors">
             Ver todas <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
-        <div className="divide-y divide-white/[0.04]">
+        <div className="divide-y divide-border">
           {tenants.map(t => (
             <Link key={t.id} to={`/developer/tenants/${t.id}`}
-              className="flex items-center gap-4 px-6 py-4 hover:bg-white/[0.02] transition-colors group">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0"
-                style={{ background: `${t.primary_color}20`, color: t.primary_color, border: `1px solid ${t.primary_color}30` }}>
+              className="flex items-center gap-4 px-6 py-4 hover:bg-muted/50 transition-colors group">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 bg-primary/10 text-primary">
                 {t.name[0]?.toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{t.name}</p>
-                <p className="text-xs text-white/30">/{t.slug} · {t.user_count} usuários · {t.active_modules} módulos</p>
+                <p className="text-sm font-medium truncate text-foreground">{t.name}</p>
+                <p className="text-xs text-muted-foreground">/{t.slug} · {t.user_count} usuários · {t.active_modules} módulos</p>
               </div>
-              <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${
-                t.plan_name === "pro" ? "bg-lime-400/15 text-lime-400" :
-                t.plan_name === "enterprise" ? "bg-violet-400/15 text-violet-400" :
-                t.plan_name === "starter" ? "bg-sky-400/15 text-sky-400" :
-                "bg-white/[0.06] text-white/40"
-              }`}>{t.plan_name}</span>
-              <div className={`w-2 h-2 rounded-full shrink-0 ${t.active ? "bg-lime-400" : "bg-red-500"}`} />
-              <ArrowUpRight className="h-3.5 w-3.5 text-white/0 group-hover:text-white/30 transition-colors" />
+              <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${PLAN_BADGE[t.plan_name] ?? PLAN_BADGE.free}`}>
+                {t.plan_name}
+              </span>
+              <div className={`w-2 h-2 rounded-full shrink-0 ${t.active ? "bg-emerald-500" : "bg-red-400"}`} />
+              <ArrowUpRight className="h-3.5 w-3.5 text-transparent group-hover:text-muted-foreground transition-colors" />
             </Link>
           ))}
         </div>

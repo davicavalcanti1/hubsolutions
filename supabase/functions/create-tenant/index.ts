@@ -63,6 +63,7 @@ serve(async (req) => {
       admin_email,
       admin_password,
       plan_name = "free",
+      module_keys = [] as string[],
     } = await req.json();
 
     if (!company_name || !company_slug || !admin_name || !admin_email || !admin_password) {
@@ -85,23 +86,25 @@ serve(async (req) => {
       );
     }
 
-    // Get plan id
+    // Get plan id (optional — column may not exist yet)
     const { data: plan } = await adminClient
       .from("plans")
       .select("id")
       .eq("name", plan_name)
       .maybeSingle();
 
+    // Build insert payload — only include plan_id if column exists (plan found)
+    const companyPayload: Record<string, unknown> = {
+      name:  company_name,
+      slug:  company_slug,
+      email: company_email ?? null,
+    };
+    if (plan?.id) companyPayload.plan_id = plan.id;
+
     // Create company
     const { data: company, error: companyError } = await adminClient
       .from("companies")
-      .insert({
-        name:     company_name,
-        slug:     company_slug,
-        email:    company_email ?? null,
-        plan_id:  plan?.id ?? null,
-        active:   true,
-      })
+      .insert(companyPayload)
       .select()
       .single();
 
@@ -120,7 +123,6 @@ serve(async (req) => {
     });
 
     if (authError) {
-      // Rollback company
       await adminClient.from("companies").delete().eq("id", company.id);
       return new Response(
         JSON.stringify({ error: authError.message }),
@@ -142,12 +144,22 @@ serve(async (req) => {
       .single();
 
     if (insertError) {
-      // Rollback
       await adminClient.auth.admin.deleteUser(authData.user.id);
       await adminClient.from("companies").delete().eq("id", company.id);
       return new Response(
         JSON.stringify({ error: insertError.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Activate selected modules
+    if (Array.isArray(module_keys) && module_keys.length > 0) {
+      await adminClient.from("company_modules").insert(
+        module_keys.map((key: string) => ({
+          company_id: company.id,
+          module_key: key,
+          active: true,
+        }))
       );
     }
 
