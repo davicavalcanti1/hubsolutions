@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "tsx watch server/src/index.ts",
+    "dev:server": "tsx watch --env-file=server/.env server/src/index.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -26,6 +26,8 @@
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.3.2",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.7.0",
     "pg": "^8.20.0",

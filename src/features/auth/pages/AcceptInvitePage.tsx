@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { api, setToken } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,8 +13,7 @@ interface InviteInfo { email: string; company_name: string; company_id: string; 
 export function AcceptInvitePage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
-  const token = searchParams.get("token");
+  const inviteToken = searchParams.get("token");
 
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -24,21 +23,37 @@ export function AcceptInvitePage() {
   const [password, setPassword]     = useState("");
 
   useEffect(() => {
-    if (!token) { setError("Token inválido"); setLoading(false); return; }
-    api.get<InviteInfo>(`/api/invitations/${token}`)
+    if (!inviteToken) { setError("Token inválido"); setLoading(false); return; }
+    api.get<InviteInfo>(`/api/invitations/${inviteToken}`)
       .then(data => { setInvite(data); setLoading(false); })
       .catch(err => { setError(err.message); setLoading(false); });
-  }, [token]);
+  }, [inviteToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
+    if (!inviteToken || !invite) return;
+    if (password.length < 8) { setError("Senha deve ter no mínimo 8 caracteres"); return; }
     setError(null);
     setSubmitting(true);
+
     try {
-      const { token: jwt } = await api.post<{ token: string }>(`/api/invitations/${token}/accept`, { full_name: fullName, password });
-      setToken(jwt);
-      await refreshUser();
+      // 1. Cria conta no Supabase com o email do convite
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email:    invite.email,
+        password,
+      });
+      if (signUpError) throw new Error(signUpError.message);
+
+      const session = data.session;
+      if (!session) {
+        // Supabase exige confirmação de email
+        navigate("/login", { state: { message: "Confirme seu e-mail e faça login para acessar." } });
+        return;
+      }
+
+      // 2. Aceita o convite e cria perfil local
+      await api.postWithToken(`/api/invitations/${inviteToken}/accept`, { full_name: fullName }, session.access_token);
+
       navigate("/hub");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao aceitar convite");
@@ -48,7 +63,6 @@ export function AcceptInvitePage() {
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
-
   if (error && !invite) return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <Card className="w-full max-w-sm text-center"><CardContent className="pt-6"><p className="text-sm text-destructive">{error}</p></CardContent></Card>
@@ -82,8 +96,8 @@ export function AcceptInvitePage() {
             </CardContent>
             <CardFooter>
               <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                Criar conta
+                {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Criar conta e entrar
               </Button>
             </CardFooter>
           </form>

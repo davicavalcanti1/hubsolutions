@@ -56,7 +56,7 @@ export function LoginPage() {
             </CardContent>
             <CardFooter className="flex flex-col gap-3">
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Entrar
               </Button>
               <p className="text-xs text-muted-foreground text-center">

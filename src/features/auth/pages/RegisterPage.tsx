@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { api, setToken } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,6 @@ import { Loader2 } from "lucide-react";
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
   const [step, setStep]       = useState<"company" | "account">("company");
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
@@ -28,15 +27,30 @@ export function RegisterPage() {
 
   const handleAccountStep = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length < 8) { setError("A senha deve ter no mínimo 8 caracteres"); return; }
     setError(null);
     setLoading(true);
     try {
-      const { token } = await api.post<{ token: string }>("/api/auth/register", {
-        company_name: companyName, company_slug: companySlug, company_email: companyEmail || null,
-        full_name: fullName, email, password,
-      });
-      setToken(token);
-      await refreshUser();
+      // 1. Cria usuário no Supabase Auth
+      const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+      if (signUpError) throw new Error(signUpError.message);
+
+      const session = data.session;
+      if (!session) {
+        // Supabase enviou e-mail de confirmação — redireciona com aviso
+        navigate("/login", { state: { message: "Confirme seu e-mail e faça login para continuar o cadastro." } });
+        return;
+      }
+
+      // 2. Com o token em mãos, cria empresa + perfil local
+      await api.postWithToken("/api/auth/complete-registration", {
+        company_name:  companyName,
+        company_slug:  companySlug,
+        company_email: companyEmail || null,
+        full_name:     fullName,
+      }, session.access_token);
+
+      // AuthContext vai detectar a sessão ativa e carregar o perfil
       navigate("/hub");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao criar conta");
@@ -110,11 +124,12 @@ export function RegisterPage() {
                 <div className="space-y-1.5">
                   <Label htmlFor="password">Senha</Label>
                   <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} minLength={8} required />
+                  <p className="text-xs text-muted-foreground">Mínimo 8 caracteres.</p>
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col gap-3">
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   Criar conta
                 </Button>
                 <button type="button" onClick={() => setStep("company")} className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">Voltar</button>
