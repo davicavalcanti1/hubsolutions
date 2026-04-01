@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
-const MODULE_META: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string }> = {
+const MODULE_META: Record<string, { icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string }> = {
   controlemidia: { icon: Monitor,       color: "#0ea5e9" },
   checkin:       { icon: UserCheck,     color: "#6366f1" },
   enfermagem:    { icon: Bell,          color: "#8b5cf6" },

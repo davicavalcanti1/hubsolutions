@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useTenantTheme } from "@/features/tenant/context/TenantThemeContext";
 import type { OccurrenceType, OccurrenceSubtype } from "../types/occurrence";
@@ -87,7 +87,6 @@ function TextArea({ value, onChange, placeholder, rows = 3 }: {
 
 export function NovaOcorrenciaPage() {
   const { slug } = useParams<{ slug: string }>();
-  const navigate = useNavigate();
   const { theme } = useTenantTheme();
   const primary = theme?.primary_color ?? "#2563eb";
 

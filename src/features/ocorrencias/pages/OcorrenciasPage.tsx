@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+
 import { useTenantTheme } from "@/features/tenant/context/TenantThemeContext";
 import {
   PlusCircle, AlertTriangle, CheckCircle2, Clock,
@@ -32,7 +32,7 @@ function StatusBadge({ status }: { status: OccurrenceStatus }) {
 
 function KPI({ label, value, icon: Icon, accent }: {
   label: string; value: number;
-  icon: React.ComponentType<{ className?: string }>; accent?: string;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; accent?: string;
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -49,7 +49,6 @@ function KPI({ label, value, icon: Icon, accent }: {
 
 export function OcorrenciasPage() {
   const { slug } = useParams<{ slug: string }>();
-  const { user } = useAuth();
   const { theme } = useTenantTheme();
   const navigate = useNavigate();
   const primary = theme?.primary_color ?? "#2563eb";

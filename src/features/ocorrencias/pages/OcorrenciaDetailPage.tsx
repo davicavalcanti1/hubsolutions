@@ -25,9 +25,7 @@ function StatusBadge({ status }: { status: OccurrenceStatus }) {
 export function OcorrenciaDetailPage() {
   const { slug, id } = useParams<{ slug: string; id: string }>();
   const { user } = useAuth();
-  const { theme } = useTenantTheme();
-  const primary = theme?.primary_color ?? "#2563eb";
-
+  useTenantTheme();
   const [occ, setOcc] = useState<Occurrence | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

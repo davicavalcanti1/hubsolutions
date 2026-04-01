@@ -267,8 +267,7 @@ export function LandingPage() {
           <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-[1.05] mb-6 text-slate-900">
             A plataforma que sua{" "}
             <span
-              className="inline-block"
-              className="bg-gradient-to-r from-sky-400 to-blue-600 bg-clip-text text-transparent">
+              className="inline-block bg-gradient-to-r from-sky-400 to-blue-600 bg-clip-text text-transparent">
               operação clínica
             </span>{" "}
             precisa.
