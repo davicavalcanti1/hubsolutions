@@ -20,11 +20,17 @@ export function SetupPage() {
   const [success, setSuccess]   = useState(false);
 
   useEffect(() => {
-    supabase
-      .from("users")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "superadmin")
-      .then(({ count }) => { setExists((count ?? 0) > 0); setChecking(false); }, () => setChecking(false));
+    const timeout = setTimeout(() => setChecking(false), 6000);
+    // Usa a edge function para checar via service_role (bypass RLS)
+    supabase.functions.invoke("setup-superadmin", { body: { check_only: true } })
+      .then(({ data }) => {
+        clearTimeout(timeout);
+        // Se retornar "Superadmin já existe" → já existe
+        setExists(data?.error === "Superadmin já existe");
+        setChecking(false);
+      })
+      .catch(() => { clearTimeout(timeout); setChecking(false); });
+    return () => clearTimeout(timeout);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

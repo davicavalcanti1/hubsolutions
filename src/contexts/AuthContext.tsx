@@ -67,14 +67,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Escuta mudanças de sessão do Supabase (login, logout, refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session) {
-        await loadProfile();
-      } else {
+      try {
+        if (session) {
+          await loadProfile();
+        } else {
+          setUser(null);
+        }
+      } catch {
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();

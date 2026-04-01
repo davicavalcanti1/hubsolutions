@@ -32,7 +32,17 @@ serve(async (req) => {
       );
     }
 
-    const { full_name, email, password } = await req.json();
+    const body = await req.json();
+
+    // check_only: apenas verifica se superadmin existe (retorna ok: false sem criar)
+    if (body.check_only) {
+      return new Response(
+        JSON.stringify({ ok: true, exists: false }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const { full_name, email, password } = body;
 
     if (!full_name || !email || !password) {
       return new Response(
