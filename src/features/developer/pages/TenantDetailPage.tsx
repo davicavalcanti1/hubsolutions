@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "@/lib/api";
-import { ArrowLeft, ToggleLeft, ToggleRight, Star, Check, X as XIcon } from "lucide-react";
+import { ArrowLeft, ToggleLeft, ToggleRight, Star, Check, X as XIcon, Plus, Loader2, Trash2, Eye, EyeOff } from "lucide-react";
 
 interface TenantDetail {
   id: string; name: string; slug: string; email: string | null;
@@ -9,7 +9,7 @@ interface TenantDetail {
   active: boolean; storage_used_bytes: number; storage_limit_bytes: number;
   primary_color: string; secondary_color: string;
   display_name: string | null; logo_url: string | null;
-  created_at: string;
+  created_at: string; max_users: number;
   members: { id: string; full_name: string; email: string; role: string; created_at: string }[];
   modules: { module_key: string; active: boolean; name: string; description: string }[];
   recent_requests: { id: string; title: string; status: string; votes: number; created_at: string }[];
@@ -35,11 +35,14 @@ export function TenantDetailPage() {
   const [tenant, setTenant] = useState<TenantDetail | null>(null);
   const [tab, setTab]       = useState<"overview" | "modules" | "members" | "requests">("overview");
   const [saving, setSaving] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
 
-  useEffect(() => {
+  const loadTenant = () => {
     if (!id) return;
     api.get<TenantDetail>(`/api/developer/tenants/${id}`).then(setTenant);
-  }, [id]);
+  };
+
+  useEffect(() => { loadTenant(); }, [id]);
 
   const patch = async (body: Record<string, unknown>) => {
     if (!id) return;
@@ -47,6 +50,16 @@ export function TenantDetailPage() {
     const updated = await api.patch<TenantDetail>(`/api/developer/tenants/${id}`, body);
     setTenant(prev => prev ? { ...prev, ...updated } : prev);
     setSaving(false);
+  };
+
+  const deleteMember = async (userId: string) => {
+    if (!id || !confirm("Remover este membro? Ele perderá acesso à plataforma.")) return;
+    try {
+      await api.delete(`/api/developer/tenants/${id}/members/${userId}`);
+      setTenant(prev => prev ? { ...prev, members: prev.members.filter(m => m.id !== userId) } : prev);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Erro ao remover membro");
+    }
   };
 
   if (!tenant) return (
@@ -96,7 +109,7 @@ export function TenantDetailPage() {
             className={`px-4 py-2.5 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
               tab === t ? "text-lime-400 border-lime-400" : "text-white/30 border-transparent hover:text-white/60"
             }`}>
-            {t === "requests" ? "Sugestões" : t === "overview" ? "Visão Geral" : t === "modules" ? "Módulos" : "Membros"}
+            {t === "requests" ? "Sugestões" : t === "overview" ? "Visão Geral" : t === "modules" ? "Módulos" : `Membros (${tenant.members.length})`}
           </button>
         ))}
       </div>
@@ -153,37 +166,83 @@ export function TenantDetailPage() {
           <div className="divide-y divide-white/[0.04]">
             {tenant.modules.map(mod => (
               <div key={mod.module_key} className="flex items-center gap-4 px-6 py-4">
-                <div>
+                <div className="flex-1">
                   <p className="text-sm font-medium">{mod.name}</p>
                   <p className="text-xs text-white/30">{mod.description}</p>
                 </div>
-                <div className="ml-auto">
-                  {mod.active ? <ToggleRight className="h-5 w-5 text-lime-400" /> : <ToggleLeft className="h-5 w-5 text-white/20" />}
-                </div>
+                <button
+                  disabled={saving}
+                  onClick={async () => {
+                    setSaving(true);
+                    const updated = await api.patch<{ module_key: string; active: boolean }>(
+                      `/api/developer/tenants/${id}/modules/${mod.module_key}`, {}
+                    );
+                    setTenant(prev => prev ? {
+                      ...prev,
+                      modules: prev.modules.map(m =>
+                        m.module_key === updated.module_key ? { ...m, active: updated.active } : m
+                      ),
+                    } : prev);
+                    setSaving(false);
+                  }}
+                  className="ml-auto shrink-0 transition-opacity disabled:opacity-40"
+                >
+                  {mod.active
+                    ? <ToggleRight className="h-5 w-5 text-lime-400" />
+                    : <ToggleLeft  className="h-5 w-5 text-white/20" />}
+                </button>
               </div>
             ))}
-            {tenant.modules.length === 0 && <p className="py-12 text-center text-sm text-white/20">Nenhum módulo ativo.</p>}
+            {tenant.modules.length === 0 && (
+              <p className="py-12 text-center text-sm text-white/20">
+                Nenhum módulo cadastrado. Verifique se a migration foi executada.
+              </p>
+            )}
           </div>
         </div>
       )}
 
       {tab === "members" && (
-        <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
-          <div className="divide-y divide-white/[0.04]">
-            {tenant.members.map(m => (
-              <div key={m.id} className="flex items-center gap-4 px-6 py-4">
-                <div className="w-8 h-8 rounded-xl bg-white/[0.06] flex items-center justify-center text-xs font-bold">
-                  {m.full_name[0]?.toUpperCase()}
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{m.full_name}</p>
-                  <p className="text-xs text-white/30">{m.email}</p>
-                </div>
-                <span className="ml-auto text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-white/[0.06] text-white/30">{m.role}</span>
-              </div>
-            ))}
-            {tenant.members.length === 0 && <p className="py-12 text-center text-sm text-white/20">Nenhum membro.</p>}
+        <div>
+          <div className="flex justify-end mb-4">
+            <button onClick={() => setShowAddMember(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-lime-400 text-black text-sm font-semibold hover:bg-lime-300 transition-colors">
+              <Plus className="h-4 w-4" /> Adicionar Membro
+            </button>
           </div>
+          <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
+            <div className="divide-y divide-white/[0.04]">
+              {tenant.members.map(m => (
+                <div key={m.id} className="flex items-center gap-4 px-6 py-4">
+                  <div className="w-8 h-8 rounded-xl bg-white/[0.06] flex items-center justify-center text-xs font-bold">
+                    {m.full_name[0]?.toUpperCase()}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{m.full_name}</p>
+                    <p className="text-xs text-white/30">{m.email}</p>
+                  </div>
+                  <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full border ${
+                    m.role === "admin"
+                      ? "bg-lime-400/15 text-lime-400 border-lime-400/25"
+                      : "bg-white/[0.06] text-white/30 border-white/[0.08]"
+                  }`}>{m.role}</span>
+                  <button onClick={() => deleteMember(m.id)}
+                    className="text-white/20 hover:text-red-400 transition-colors">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              {tenant.members.length === 0 && <p className="py-12 text-center text-sm text-white/20">Nenhum membro.</p>}
+            </div>
+          </div>
+
+          {showAddMember && (
+            <AddMemberModal
+              tenantId={id!}
+              onClose={() => setShowAddMember(false)}
+              onAdded={() => { setShowAddMember(false); loadTenant(); }}
+            />
+          )}
         </div>
       )}
 
@@ -206,6 +265,100 @@ export function TenantDetailPage() {
           {tenant.recent_requests.length === 0 && <p className="py-12 text-center text-sm text-white/20">Nenhuma sugestão.</p>}
         </div>
       )}
+    </div>
+  );
+}
+
+function AddMemberModal({ tenantId, onClose, onAdded }: { tenantId: string; onClose: () => void; onAdded: () => void }) {
+  const [fullName, setFullName]   = useState("");
+  const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [role, setRole]           = useState<"admin" | "user">("user");
+  const [showPw, setShowPw]       = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 8) { setError("Senha deve ter no mínimo 8 caracteres"); return; }
+    setError(null);
+    setSaving(true);
+    try {
+      await api.post(`/api/developer/tenants/${tenantId}/members`, {
+        full_name: fullName,
+        email,
+        password,
+        role,
+      });
+      onAdded();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erro ao adicionar membro");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+      <div className="w-full max-w-md bg-[#111] border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+          <h2 className="text-lg font-bold">Adicionar Membro</h2>
+          <button onClick={onClose} className="text-white/30 hover:text-white/60"><XIcon className="h-5 w-5" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && <div className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{error}</div>}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white/50">Nome completo *</label>
+            <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="João Silva"
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-lime-400/40"
+              required />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white/50">E-mail *</label>
+            <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="usuario@empresa.com"
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-lime-400/40"
+              required />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white/50">Senha temporária *</label>
+            <div className="relative">
+              <input value={password} onChange={e => setPassword(e.target.value)}
+                type={showPw ? "text" : "password"} placeholder="Mínimo 8 caracteres" minLength={8}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-lime-400/40 pr-10"
+                required />
+              <button type="button" onClick={() => setShowPw(!showPw)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white/50">Permissão</label>
+            <div className="flex gap-2">
+              {(["user", "admin"] as const).map(r => (
+                <button key={r} type="button" onClick={() => setRole(r)}
+                  className={`flex-1 text-sm px-3 py-2 rounded-lg border transition-colors ${
+                    role === r
+                      ? "border-lime-400/30 bg-lime-400/10 text-lime-400"
+                      : "border-white/[0.08] text-white/30 hover:border-white/20 hover:text-white/60"
+                  }`}>{r === "admin" ? "Administrador" : "Usuário"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="flex-1 px-4 py-2.5 rounded-xl border border-white/[0.08] text-sm text-white/40 hover:text-white/60 transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-lime-400 text-black text-sm font-semibold hover:bg-lime-300 transition-colors disabled:opacity-50">
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Adicionar
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

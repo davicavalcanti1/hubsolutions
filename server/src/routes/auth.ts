@@ -67,9 +67,14 @@ router.post("/complete-registration", async (req, res) => {
   try {
     await client.query("BEGIN");
 
+    // Plan padrão: free
+    const { rows: [freePlan] } = await client.query(
+      `SELECT id FROM plans WHERE name = 'free' LIMIT 1`
+    );
+
     const { rows: [company] } = await client.query(
-      `INSERT INTO companies (name, slug, email) VALUES ($1, $2, $3) RETURNING *`,
-      [company_name, company_slug, company_email || null]
+      `INSERT INTO companies (name, slug, email, plan_id) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [company_name, company_slug, company_email || null, freePlan?.id ?? null]
     );
 
     const { rows: [user] } = await client.query(
@@ -91,37 +96,55 @@ router.post("/complete-registration", async (req, res) => {
   }
 });
 
-// POST /api/auth/setup-superadmin
-// Só funciona se não existir nenhum superadmin. Use uma vez após criar no Supabase.
-router.post("/setup-superadmin", async (req, res) => {
-  const header = req.headers.authorization;
-  if (!header?.startsWith("Bearer ")) { res.status(401).json({ error: "Não autenticado" }); return; }
-
-  const token = header.slice(7);
-  let supabaseId: string;
-  let supabaseEmail: string;
-
+// GET /api/auth/has-superadmin — verifica se já existe developer
+router.get("/has-superadmin", async (_req, res) => {
   try {
-    const payload = jwt.verify(token, SUPABASE_JWT_SECRET) as { sub: string; email: string };
-    supabaseId    = payload.sub;
-    supabaseEmail = payload.email;
-  } catch {
-    res.status(401).json({ error: "Token inválido" }); return;
+    const { rows } = await pool.query(`SELECT id FROM users WHERE role = 'superadmin' LIMIT 1`);
+    res.json({ exists: rows.length > 0 });
+  } catch (err) {
+    console.error("[auth/has-superadmin]", err);
+    res.status(500).json({ error: "Erro interno" });
   }
+});
 
+// POST /api/auth/setup-superadmin
+// Cria o primeiro developer (superadmin) da plataforma. Só funciona UMA vez.
+router.post("/setup-superadmin", async (req, res) => {
   try {
     const { rows: existing } = await pool.query(`SELECT id FROM users WHERE role = 'superadmin'`);
     if (existing.length > 0) {
       res.status(409).json({ error: "Superadmin já existe" }); return;
     }
 
-    const { full_name = "Developer" } = req.body;
+    const { full_name, email, password } = req.body;
+    if (!full_name || !email || !password) {
+      res.status(400).json({ error: "Campos obrigatórios: full_name, email, password" }); return;
+    }
+    if (password.length < 8) {
+      res.status(400).json({ error: "Senha deve ter no mínimo 8 caracteres" }); return;
+    }
+
+    // Cria usuário no Supabase Auth via Admin API
+    const { supabaseAdmin } = await import("../lib/supabaseAdmin.js");
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: email.toLowerCase(),
+      password,
+      email_confirm: true,
+    });
+
+    if (authError || !authData.user) {
+      console.error("[auth/setup-superadmin] Supabase error:", authError);
+      res.status(500).json({ error: authError?.message || "Erro ao criar usuário no Supabase" }); return;
+    }
+
+    // Cria perfil local como superadmin (sem company_id)
     const { rows: [user] } = await pool.query(
       `INSERT INTO users (supabase_user_id, company_id, full_name, email, role)
        VALUES ($1, NULL, $2, $3, 'superadmin')
        RETURNING id, supabase_user_id, company_id, full_name, email, role`,
-      [supabaseId, full_name, supabaseEmail]
+      [authData.user.id, full_name, email.toLowerCase()]
     );
+
     res.json({ user });
   } catch (err) {
     console.error("[auth/setup-superadmin]", err);

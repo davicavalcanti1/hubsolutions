@@ -54,7 +54,8 @@ export function AcceptInvitePage() {
       // 2. Aceita o convite e cria perfil local
       await api.postWithToken(`/api/invitations/${inviteToken}/accept`, { full_name: fullName }, session.access_token);
 
-      navigate("/hub");
+      // Redireciona para o hub da empresa (o AuthContext carregará o slug)
+      navigate("/hub", { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao aceitar convite");
     } finally {

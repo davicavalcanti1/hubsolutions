@@ -10,13 +10,13 @@ export async function trackUsage(
 ) {
   try {
     await pool.query(
-      `INSERT INTO usage_events (tenant_id, event_type, table_name, size_bytes) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO usage_events (company_id, event_type, table_name, size_bytes) VALUES ($1, $2, $3, $4)`,
       [tenantId, eventType, tableName, sizeBytes]
     );
     if (sizeBytes !== 0) {
       const delta = eventType === "storage_remove" || eventType === "delete" ? -sizeBytes : sizeBytes;
       await pool.query(
-        `UPDATE tenants SET storage_used_bytes = GREATEST(0, storage_used_bytes + $1) WHERE id = $2`,
+        `UPDATE companies SET storage_used_bytes = GREATEST(0, storage_used_bytes + $1) WHERE id = $2`,
         [delta, tenantId]
       );
     }

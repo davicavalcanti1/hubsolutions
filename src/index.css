@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 @layer base {
   :root {
     --background: 0 0% 98%;
@@ -11,14 +16,14 @@
     --border: 220 13% 88%;
     --input: 220 13% 88%;
     --ring: 220 9% 40%;
-    --primary: 220 9% 25%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 220 9% 94%;
-    --secondary-foreground: 220 9% 25%;
-    --muted: 220 9% 94%;
-    --muted-foreground: 220 9% 50%;
-    --accent: 220 9% 92%;
-    --accent-foreground: 220 9% 25%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 221 83% 35%;
+    --muted: 214 32% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 214 32% 91%;
+    --accent-foreground: 221 83% 35%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
     --radius: 0.5rem;

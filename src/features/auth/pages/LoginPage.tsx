@@ -1,11 +1,17 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+
+interface UserProfile {
+  role: "superadmin" | "admin" | "user";
+  company_slug: string | null;
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -21,7 +27,15 @@ export function LoginPage() {
     setLoading(true);
     try {
       await signIn(email, password);
-      navigate("/hub");
+      // Carrega perfil para decidir o redirect
+      const me = await api.get<UserProfile>("/api/auth/me");
+      if (me.role === "superadmin") {
+        navigate("/developer", { replace: true });
+      } else if (me.company_slug) {
+        navigate(`/${me.company_slug}`, { replace: true });
+      } else {
+        navigate("/hub", { replace: true });
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao entrar");
     } finally {
@@ -54,15 +68,11 @@ export function LoginPage() {
                 <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col gap-3">
+            <CardFooter>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Entrar
               </Button>
-              <p className="text-xs text-muted-foreground text-center">
-                Não tem conta?{" "}
-                <Link to="/register" className="text-foreground font-medium underline-offset-4 hover:underline">Registrar empresa</Link>
-              </p>
             </CardFooter>
           </form>
         </Card>

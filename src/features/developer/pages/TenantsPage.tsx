@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Link } from "react-router-dom";
-import { Search, ArrowUpRight, ToggleLeft, ToggleRight } from "lucide-react";
+import { Search, ArrowUpRight, ToggleLeft, ToggleRight, Plus, X, Loader2, Eye, EyeOff } from "lucide-react";
 
 interface Tenant {
   id: string; name: string; slug: string; email: string | null;
@@ -18,16 +18,23 @@ function bytes(n: number) {
   return `${(n / 1024 ** 3).toFixed(2)} GB`;
 }
 
+function slugify(text: string) {
+  return text.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+}
+
 export function TenantsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [search, setSearch]   = useState("");
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
     api.get<Tenant[]>("/api/developer/tenants").then(data => {
       setTenants(data); setLoading(false);
     });
-  }, []);
+  };
+
+  useEffect(() => { load(); }, []);
 
   const toggleActive = async (t: Tenant) => {
     await api.patch(`/api/developer/tenants/${t.id}`, { active: !t.active });
@@ -48,6 +55,12 @@ export function TenantsPage() {
           <h1 className="text-2xl font-black">Empresas</h1>
           <p className="text-white/30 text-sm mt-1">{tenants.length} empresa{tenants.length !== 1 ? "s" : ""} registrada{tenants.length !== 1 ? "s" : ""}</p>
         </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-lime-400 text-black text-sm font-semibold hover:bg-lime-300 transition-colors"
+        >
+          <Plus className="h-4 w-4" /> Nova Empresa
+        </button>
       </div>
 
       <div className="relative mb-5">
@@ -109,6 +122,149 @@ export function TenantsPage() {
           </div>
         </div>
       )}
+
+      {showModal && (
+        <CreateTenantModal
+          onClose={() => setShowModal(false)}
+          onCreated={() => { setShowModal(false); setLoading(true); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [companyName, setCompanyName]   = useState("");
+  const [companySlug, setCompanySlug]   = useState("");
+  const [companyEmail, setCompanyEmail] = useState("");
+  const [adminName, setAdminName]       = useState("");
+  const [adminEmail, setAdminEmail]     = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [planName, setPlanName]         = useState("free");
+  const [showPw, setShowPw]             = useState(false);
+  const [saving, setSaving]             = useState(false);
+  const [error, setError]               = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminPassword.length < 8) { setError("Senha deve ter no mínimo 8 caracteres"); return; }
+    setError(null);
+    setSaving(true);
+    try {
+      await api.post("/api/developer/tenants", {
+        company_name: companyName,
+        company_slug: companySlug,
+        company_email: companyEmail || null,
+        admin_email: adminEmail,
+        admin_name: adminName,
+        admin_password: adminPassword,
+        plan_name: planName,
+      });
+      onCreated();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erro ao criar empresa");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+      <div className="w-full max-w-lg bg-[#111] border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+          <h2 className="text-lg font-bold">Nova Empresa</h2>
+          <button onClick={onClose} className="text-white/30 hover:text-white/60"><X className="h-5 w-5" /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {error && <div className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{error}</div>}
+
+          <p className="text-xs font-semibold text-white/40 uppercase tracking-widest">Dados da empresa</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-white/50">Nome da empresa *</label>
+              <input value={companyName}
+                onChange={e => { setCompanyName(e.target.value); setCompanySlug(slugify(e.target.value)); }}
+                placeholder="Clínica Exemplo"
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-lime-400/40"
+                required />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-white/50">Slug *</label>
+              <input value={companySlug}
+                onChange={e => setCompanySlug(slugify(e.target.value))}
+                placeholder="clinica-exemplo"
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white font-mono placeholder:text-white/20 focus:outline-none focus:border-lime-400/40"
+                required />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-white/50">E-mail da empresa</label>
+              <input value={companyEmail}
+                onChange={e => setCompanyEmail(e.target.value)}
+                type="email" placeholder="contato@empresa.com"
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-lime-400/40" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-white/50">Plano</label>
+              <select value={planName} onChange={e => setPlanName(e.target.value)}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-lime-400/40">
+                <option value="free">Free</option>
+                <option value="starter">Starter</option>
+                <option value="pro">Pro</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="border-t border-white/[0.06] pt-5">
+            <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">Conta do administrador</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-white/50">Nome do admin *</label>
+                <input value={adminName} onChange={e => setAdminName(e.target.value)}
+                  placeholder="João Silva"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-lime-400/40"
+                  required />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-white/50">E-mail do admin *</label>
+                <input value={adminEmail} onChange={e => setAdminEmail(e.target.value)}
+                  type="email" placeholder="admin@empresa.com"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-lime-400/40"
+                  required />
+              </div>
+            </div>
+            <div className="space-y-1.5 mt-4">
+              <label className="text-xs font-medium text-white/50">Senha temporária *</label>
+              <div className="relative">
+                <input value={adminPassword} onChange={e => setAdminPassword(e.target.value)}
+                  type={showPw ? "text" : "password"} placeholder="Mínimo 8 caracteres" minLength={8}
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-lime-400/40 pr-10"
+                  required />
+                <button type="button" onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-[11px] text-white/25">O admin usará esta senha no primeiro login.</p>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="flex-1 px-4 py-2.5 rounded-xl border border-white/[0.08] text-sm text-white/40 hover:text-white/60 hover:border-white/20 transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-lime-400 text-black text-sm font-semibold hover:bg-lime-300 transition-colors disabled:opacity-50">
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Criar Empresa
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
