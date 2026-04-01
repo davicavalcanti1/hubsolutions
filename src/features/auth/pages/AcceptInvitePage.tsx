@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,9 +23,18 @@ export function AcceptInvitePage() {
 
   useEffect(() => {
     if (!inviteToken) { setError("Token inválido"); setLoading(false); return; }
-    api.get<InviteInfo>(`/api/invitations/${inviteToken}`)
-      .then(data => { setInvite(data); setLoading(false); })
-      .catch(err => { setError(err.message); setLoading(false); });
+    supabase.from("invitations")
+      .select("email, role, expires_at, accepted, companies:company_id(name, id)")
+      .eq("token", inviteToken)
+      .maybeSingle()
+      .then(({ data: inv, error }) => {
+        if (error || !inv) { setError("Convite não encontrado"); setLoading(false); return; }
+        if (inv.accepted)  { setError("Convite já utilizado"); setLoading(false); return; }
+        if (new Date(inv.expires_at) < new Date()) { setError("Convite expirado"); setLoading(false); return; }
+        const co = inv.companies as any;
+        setInvite({ email: inv.email, role: inv.role, company_name: co?.name ?? "—", company_id: co?.id ?? "" });
+        setLoading(false);
+      });
   }, [inviteToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,8 +59,11 @@ export function AcceptInvitePage() {
         return;
       }
 
-      // 2. Aceita o convite e cria perfil local
-      await api.postWithToken(`/api/invitations/${inviteToken}/accept`, { full_name: fullName }, session.access_token);
+      // 2. Aceita o convite via Edge Function
+      const { error: fnError } = await supabase.functions.invoke("accept-invite", {
+        body: { token: inviteToken, full_name: fullName },
+      });
+      if (fnError) throw new Error(fnError.message);
 
       // Redireciona para o hub da empresa (o AuthContext carregará o slug)
       navigate("/hub", { replace: true });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 
 import { useTenantTheme } from "@/features/tenant/context/TenantThemeContext";
 import {
@@ -57,10 +57,11 @@ export function OcorrenciasPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<Occurrence[]>("/api/ocorrencias").then(data => {
-      setOccurrences(data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    supabase
+      .from("occurrences")
+      .select("*")
+      .order("criado_em", { ascending: false })
+      .then(({ data }) => { setOccurrences((data as any) ?? []); setLoading(false); }, () => setLoading(false));
   }, []);
 
   const total       = occurrences.length;

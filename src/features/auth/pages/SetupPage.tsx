@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,9 +20,11 @@ export function SetupPage() {
   const [success, setSuccess]   = useState(false);
 
   useEffect(() => {
-    api.get<{ exists: boolean }>("/api/auth/has-superadmin")
-      .then(data => { setExists(data.exists); setChecking(false); })
-      .catch(() => setChecking(false));
+    supabase
+      .from("users")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "superadmin")
+      .then(({ count }) => { setExists((count ?? 0) > 0); setChecking(false); }, () => setChecking(false));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,7 +33,11 @@ export function SetupPage() {
     setError(null);
     setLoading(true);
     try {
-      await api.post("/api/auth/setup-superadmin", { full_name: fullName, email, password });
+      const { data, error: fnError } = await supabase.functions.invoke("setup-superadmin", {
+        body: { full_name: fullName, email, password },
+      });
+      if (fnError) throw new Error(fnError.message);
+      if (data?.error) throw new Error(data.error);
       setSuccess(true);
       setTimeout(() => navigate("/login"), 2000);
     } catch (err: unknown) {

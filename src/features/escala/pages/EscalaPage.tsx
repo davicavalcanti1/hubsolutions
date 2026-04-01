@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { useTenantTheme } from "@/features/tenant/context/TenantThemeContext";
 import { MapPin, Users, Stethoscope, CalendarDays, Plus, Pencil, Trash2, Loader2, X } from "lucide-react";
 
@@ -12,8 +13,6 @@ interface Medico       { id: string; nome: string; crm: string | null; especiali
 interface Escala       { id: string; nome: string; mes: number; ano: number; local_nome: string | null; dados: Record<string, unknown>; }
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-
-// ── Generic CRUD field ─────────────────────────────────────────────────────────
 
 function CrudField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
@@ -32,32 +31,40 @@ function CrudField({ label, value, onChange, placeholder }: { label: string; val
 // ── Locais tab ────────────────────────────────────────────────────────────────
 
 function LocaisTab() {
+  const { user } = useAuth();
   const [locais, setLocais]   = useState<Local[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm]       = useState({ nome: "", descricao: "" });
   const [saving, setSaving]   = useState(false);
   const [editId, setEditId]   = useState<string | null>(null);
 
-  const load = () => api.get<Local[]>("/api/escala/locais").then(d => { setLocais(d); setLoading(false); });
+  const load = () => {
+    supabase.from("locais").select("*").order("nome")
+      .then(({ data }) => { setLocais(data ?? []); setLoading(false); });
+  };
   useEffect(() => { load(); }, []);
 
   const save = async () => {
-    if (!form.nome.trim()) return;
+    if (!form.nome.trim() || !user?.company_id) return;
     setSaving(true);
     if (editId) {
-      const updated = await api.patch<Local>(`/api/escala/locais/${editId}`, form);
-      setLocais(prev => prev.map(l => l.id === editId ? updated : l));
+      const { data } = await supabase.from("locais").update({
+        nome: form.nome.trim(), descricao: form.descricao.trim() || null,
+      }).eq("id", editId).select().single();
+      if (data) setLocais(prev => prev.map(l => l.id === editId ? (data as Local) : l));
       setEditId(null);
     } else {
-      const created = await api.post<Local>("/api/escala/locais", form);
-      setLocais(prev => [created, ...prev]);
+      const { data } = await supabase.from("locais").insert({
+        company_id: user.company_id, nome: form.nome.trim(), descricao: form.descricao.trim() || null,
+      }).select().single();
+      if (data) setLocais(prev => [(data as Local), ...prev]);
     }
     setForm({ nome: "", descricao: "" });
     setSaving(false);
   };
 
   const del = async (id: string) => {
-    await api.delete(`/api/escala/locais/${id}`);
+    await supabase.from("locais").delete().eq("id", id);
     setLocais(prev => prev.filter(l => l.id !== id));
   };
 
@@ -109,32 +116,43 @@ function LocaisTab() {
 // ── Funcionários tab ──────────────────────────────────────────────────────────
 
 function FuncionariosTab() {
+  const { user } = useAuth();
   const [items, setItems] = useState<Funcionario[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ nome: "", cargo: "", setor: "", email: "", telefone: "" });
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 
-  const load = () => api.get<Funcionario[]>("/api/escala/funcionarios").then(d => { setItems(d); setLoading(false); });
+  const load = () => {
+    supabase.from("funcionarios").select("*").order("nome")
+      .then(({ data }) => { setItems(data ?? []); setLoading(false); });
+  };
   useEffect(() => { load(); }, []);
 
   const save = async () => {
-    if (!form.nome.trim()) return;
+    if (!form.nome.trim() || !user?.company_id) return;
     setSaving(true);
+    const payload = {
+      nome: form.nome.trim(),
+      cargo: form.cargo.trim() || null,
+      setor: form.setor.trim() || null,
+      email: form.email.trim() || null,
+      telefone: form.telefone.trim() || null,
+    };
     if (editId) {
-      const updated = await api.patch<Funcionario>(`/api/escala/funcionarios/${editId}`, form);
-      setItems(prev => prev.map(x => x.id === editId ? updated : x));
+      const { data } = await supabase.from("funcionarios").update(payload).eq("id", editId).select().single();
+      if (data) setItems(prev => prev.map(x => x.id === editId ? (data as Funcionario) : x));
       setEditId(null);
     } else {
-      const created = await api.post<Funcionario>("/api/escala/funcionarios", form);
-      setItems(prev => [created, ...prev]);
+      const { data } = await supabase.from("funcionarios").insert({ company_id: user.company_id, ...payload }).select().single();
+      if (data) setItems(prev => [(data as Funcionario), ...prev]);
     }
     setForm({ nome: "", cargo: "", setor: "", email: "", telefone: "" });
     setSaving(false);
   };
 
   const del = async (id: string) => {
-    await api.delete(`/api/escala/funcionarios/${id}`);
+    await supabase.from("funcionarios").delete().eq("id", id);
     setItems(prev => prev.filter(x => x.id !== id));
   };
 
@@ -197,32 +215,43 @@ function FuncionariosTab() {
 // ── Médicos tab ───────────────────────────────────────────────────────────────
 
 function MedicosTab() {
+  const { user } = useAuth();
   const [items, setItems] = useState<Medico[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ nome: "", crm: "", especialidade: "", email: "", telefone: "" });
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 
-  const load = () => api.get<Medico[]>("/api/escala/medicos").then(d => { setItems(d); setLoading(false); });
+  const load = () => {
+    supabase.from("medicos").select("*").order("nome")
+      .then(({ data }) => { setItems(data ?? []); setLoading(false); });
+  };
   useEffect(() => { load(); }, []);
 
   const save = async () => {
-    if (!form.nome.trim()) return;
+    if (!form.nome.trim() || !user?.company_id) return;
     setSaving(true);
+    const payload = {
+      nome: form.nome.trim(),
+      crm: form.crm.trim() || null,
+      especialidade: form.especialidade.trim() || null,
+      email: form.email.trim() || null,
+      telefone: form.telefone.trim() || null,
+    };
     if (editId) {
-      const updated = await api.patch<Medico>(`/api/escala/medicos/${editId}`, form);
-      setItems(prev => prev.map(x => x.id === editId ? updated : x));
+      const { data } = await supabase.from("medicos").update(payload).eq("id", editId).select().single();
+      if (data) setItems(prev => prev.map(x => x.id === editId ? (data as Medico) : x));
       setEditId(null);
     } else {
-      const created = await api.post<Medico>("/api/escala/medicos", form);
-      setItems(prev => [created, ...prev]);
+      const { data } = await supabase.from("medicos").insert({ company_id: user.company_id, ...payload }).select().single();
+      if (data) setItems(prev => [(data as Medico), ...prev]);
     }
     setForm({ nome: "", crm: "", especialidade: "", email: "", telefone: "" });
     setSaving(false);
   };
 
   const del = async (id: string) => {
-    await api.delete(`/api/escala/medicos/${id}`);
+    await supabase.from("medicos").delete().eq("id", id);
     setItems(prev => prev.filter(x => x.id !== id));
   };
 
@@ -285,30 +314,48 @@ function MedicosTab() {
 // ── Escalas tab ───────────────────────────────────────────────────────────────
 
 function EscalaTab() {
+  const { user } = useAuth();
   const now = new Date();
   const [escalas, setEscalas] = useState<Escala[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ nome: "", mes: String(now.getMonth() + 1), ano: String(now.getFullYear()) });
   const [saving, setSaving] = useState(false);
 
-  const load = () => api.get<Escala[]>("/api/escala").then(d => { setEscalas(d); setLoading(false); });
+  const load = () => {
+    supabase.from("escalas")
+      .select("id, nome, mes, ano, dados, local_id, locais:local_id(nome)")
+      .order("ano", { ascending: false })
+      .then(({ data }) => {
+        setEscalas((data ?? []).map((e: any) => ({
+          id: e.id, nome: e.nome, mes: e.mes, ano: e.ano,
+          dados: e.dados ?? {},
+          local_nome: e.locais?.nome ?? null,
+        })));
+        setLoading(false);
+      });
+  };
   useEffect(() => { load(); }, []);
 
   const save = async () => {
-    if (!form.nome.trim()) return;
+    if (!form.nome.trim() || !user?.company_id) return;
     setSaving(true);
-    const created = await api.post<Escala>("/api/escala", {
+    const { data } = await supabase.from("escalas").insert({
+      company_id: user.company_id,
       nome: form.nome.trim(),
       mes:  Number(form.mes),
       ano:  Number(form.ano),
-    });
-    setEscalas(prev => [created, ...prev]);
+      dados: {},
+    }).select("id, nome, mes, ano, dados, locais:local_id(nome)").single();
+    if (data) {
+      const e = data as any;
+      setEscalas(prev => [{ id: e.id, nome: e.nome, mes: e.mes, ano: e.ano, dados: e.dados ?? {}, local_nome: e.locais?.nome ?? null }, ...prev]);
+    }
     setForm(p => ({ ...p, nome: "" }));
     setSaving(false);
   };
 
   const del = async (id: string) => {
-    await api.delete(`/api/escala/${id}`);
+    await supabase.from("escalas").delete().eq("id", id);
     setEscalas(prev => prev.filter(e => e.id !== id));
   };
 
@@ -396,7 +443,6 @@ export function EscalaPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-10">
-        {/* Tabs */}
         <div className="flex gap-1 border-b border-slate-200 mb-7">
           {TABS.map(({ key, label, icon: Icon }) => (
             <button

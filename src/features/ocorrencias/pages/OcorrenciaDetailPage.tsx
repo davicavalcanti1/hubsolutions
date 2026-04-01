@@ -1,11 +1,20 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenantTheme } from "@/features/tenant/context/TenantThemeContext";
 import type { Occurrence, OccurrenceStatus, TriageClassification } from "../types/occurrence";
 import { statusConfig, statusTransitions, triageConfig, typeLabels, subtypeLabels } from "../types/occurrence";
 import { ArrowLeft, Loader2, Clock } from "lucide-react";
+
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  registrada:         ["em_triagem", "improcedente"],
+  em_triagem:         ["em_analise", "improcedente"],
+  em_analise:         ["acao_em_andamento", "concluida", "improcedente"],
+  acao_em_andamento:  ["concluida", "improcedente"],
+  concluida:          [],
+  improcedente:       [],
+};
 
 function fmtDate(d: string | undefined | null): string {
   if (!d) return "—";
@@ -34,16 +43,34 @@ export function OcorrenciaDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    api.get<Occurrence>(`/api/ocorrencias/${id}`)
-      .then(data => { setOcc(data); setLoading(false); })
-      .catch(() => setLoading(false));
+    supabase
+      .from("occurrences")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data }) => { setOcc(data as any); setLoading(false); }, () => setLoading(false));
   }, [id]);
 
   const patchStatus = async (status: OccurrenceStatus) => {
     if (!occ) return;
+    // Validate transition
+    const valid = VALID_TRANSITIONS[occ.status] ?? [];
+    if (!valid.includes(status)) return;
+
     setSaving(true);
-    const updated = await api.patch<Occurrence>(`/api/ocorrencias/${occ.id}`, { status, motivo });
-    setOcc(updated);
+    const newHistorico = [
+      ...(occ.historico_status as any[] ?? []),
+      { de: occ.status, para: status, por: user?.full_name ?? "admin", em: new Date().toISOString(), motivo: motivo || null },
+    ];
+
+    const { data: updated } = await supabase
+      .from("occurrences")
+      .update({ status, historico_status: newHistorico })
+      .eq("id", occ.id)
+      .select()
+      .single();
+
+    if (updated) setOcc(updated as any);
     setMotivo("");
     setSaving(false);
   };
@@ -51,8 +78,18 @@ export function OcorrenciaDetailPage() {
   const patchTriage = async () => {
     if (!occ || !triage) return;
     setSaving(true);
-    const updated = await api.patch<Occurrence>(`/api/ocorrencias/${occ.id}`, { triagem: triage });
-    setOcc(updated);
+    const { data: updated } = await supabase
+      .from("occurrences")
+      .update({
+        triagem:    triage,
+        triagem_por: user?.full_name ?? "admin",
+        triagem_em:  new Date().toISOString(),
+      })
+      .eq("id", occ.id)
+      .select()
+      .single();
+
+    if (updated) setOcc(updated as any);
     setTriage("");
     setSaving(false);
   };
@@ -202,7 +239,7 @@ export function OcorrenciaDetailPage() {
                   disabled={saving}
                   className={`text-xs font-bold uppercase px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-40 ${statusConfig[s].bg} ${statusConfig[s].color}`}
                 >
-                  → {statusConfig[s].label}
+                  {statusConfig[s].label}
                 </button>
               ))}
             </div>
@@ -210,17 +247,17 @@ export function OcorrenciaDetailPage() {
         )}
 
         {/* History */}
-        {occ.historico_status.length > 0 && (
+        {(occ.historico_status as any[]).length > 0 && (
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="text-sm font-semibold mb-4 text-slate-900">Histórico de Status</h3>
             <div className="space-y-3">
-              {[...occ.historico_status].reverse().map((h, i) => (
+              {[...(occ.historico_status as any[])].reverse().map((h, i) => (
                 <div key={i} className="flex items-start gap-3 text-xs">
                   <Clock className="h-3.5 w-3.5 text-slate-300 mt-0.5 shrink-0" />
                   <div>
-                    <span className={`font-semibold ${statusConfig[h.de].color}`}>{statusConfig[h.de].label}</span>
+                    <span className={`font-semibold ${statusConfig[h.de as OccurrenceStatus]?.color}`}>{statusConfig[h.de as OccurrenceStatus]?.label}</span>
                     {" → "}
-                    <span className={`font-semibold ${statusConfig[h.para].color}`}>{statusConfig[h.para].label}</span>
+                    <span className={`font-semibold ${statusConfig[h.para as OccurrenceStatus]?.color}`}>{statusConfig[h.para as OccurrenceStatus]?.label}</span>
                     {h.motivo && <p className="text-slate-400 mt-0.5">{h.motivo}</p>}
                     <p className="text-slate-300 mt-0.5">
                       {h.por} · {fmtDate(h.em)}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { Star, ChevronDown } from "lucide-react";
 
 interface Request {
@@ -26,14 +26,28 @@ export function FeatureRequestsPage() {
   const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
-    api.get<Request[]>("/api/developer/feature-requests").then(data => {
-      setRequests(data);
-      setLoading(false);
-    });
+    supabase
+      .from("feature_requests")
+      .select("id, title, description, status, votes, created_at, companies:company_id(name, slug)")
+      .order("votes", { ascending: false })
+      .then(({ data }) => {
+        const mapped = (data ?? []).map(r => ({
+          id:          r.id,
+          title:       r.title,
+          description: r.description,
+          status:      r.status,
+          votes:       r.votes,
+          created_at:  r.created_at,
+          tenant_name: (r.companies as any)?.name ?? "—",
+          tenant_slug: (r.companies as any)?.slug ?? "",
+        }));
+        setRequests(mapped);
+        setLoading(false);
+      });
   }, []);
 
-  const updateStatus = async (id: string, status: string) => {
-    await api.patch(`/api/developer/feature-requests/${id}`, { status });
+  const updateStatus = async (id: string, status: "pending" | "reviewing" | "planned" | "in_progress" | "done" | "rejected") => {
+    await supabase.from("feature_requests").update({ status }).eq("id", id);
     setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
   };
 
@@ -101,7 +115,7 @@ export function FeatureRequestsPage() {
                   <div className="relative">
                     <select
                       value={req.status}
-                      onChange={e => updateStatus(req.id, e.target.value)}
+                      onChange={e => updateStatus(req.id, e.target.value as "pending" | "reviewing" | "planned" | "in_progress" | "done" | "rejected")}
                       className={`appearance-none text-[11px] font-bold uppercase px-3 py-1.5 pr-6 rounded-full border cursor-pointer bg-transparent focus:outline-none transition-colors ${STATUS_META[req.status]?.color ?? "border-white/[0.08] text-white/30"}`}
                     >
                       {STATUSES.map(s => (

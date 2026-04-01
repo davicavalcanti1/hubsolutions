@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { api } from "@/lib/api";
 
 interface User {
   id: string;
@@ -37,17 +36,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function loadProfile() {
-    try {
-      const me = await api.get<User>("/api/auth/me");
-      setUser(me);
-    } catch (err: any) {
-      // NO_PROFILE: autenticado no Supabase mas sem perfil local ainda
-      // (ex: usuário recém registrado que ainda não completou o cadastro)
-      if (err?.code !== "NO_PROFILE") {
-        await supabase.auth.signOut();
-      }
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) { setUser(null); return; }
+
+    const { data: profile } = await supabase
+      .from("users")
+      .select("id, supabase_user_id, company_id, full_name, email, role, avatar_url, companies:company_id(name, slug, logo_url)")
+      .eq("supabase_user_id", authUser.id)
+      .maybeSingle();
+
+    if (!profile) {
+      await supabase.auth.signOut();
       setUser(null);
+      return;
     }
+
+    const co = profile.companies as any;
+    setUser({
+      id:               profile.id,
+      supabase_user_id: profile.supabase_user_id ?? authUser.id,
+      company_id:       profile.company_id,
+      full_name:        profile.full_name,
+      email:            profile.email,
+      role:             profile.role as "superadmin" | "admin" | "user",
+      avatar_url:       profile.avatar_url ?? null,
+      company_name:     co?.name ?? null,
+      company_slug:     co?.slug ?? null,
+      company_logo:     co?.logo_url ?? null,
+    });
   }
 
   useEffect(() => {

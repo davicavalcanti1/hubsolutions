@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,36 +24,50 @@ export function CompanySettingsPage() {
   const [inviteLink, setInviteLink]     = useState<string | null>(null);
 
   useEffect(() => {
+    if (!user?.company_id) return;
     Promise.all([
-      api.get<Member[]>("/api/companies/me/members"),
-      api.get<Module[]>("/api/modules"),
-      api.get<CompMod[]>("/api/companies/me/modules"),
-    ]).then(([m, mods, cm]) => {
-      setMembers(m);
-      setAllModules(mods);
-      setActiveModules(cm);
+      supabase.from("users").select("id, full_name, email, role").eq("company_id", user.company_id).order("created_at"),
+      supabase.from("modules").select("key, name, description, price_monthly").order("name"),
+      supabase.from("company_modules").select("module_key, active").eq("company_id", user.company_id),
+    ]).then(([{ data: m }, { data: mods }, { data: cm }]) => {
+      setMembers(m ?? []);
+      setAllModules(mods ?? []);
+      setActiveModules(cm ?? []);
       setLoading(false);
     });
-  }, []);
+  }, [user?.company_id]);
 
   const isActive = (key: string) => activeModules.some(cm => cm.module_key === key && cm.active);
 
   const toggleModule = async (key: string) => {
+    if (!user?.company_id) return;
     setSaving(true);
-    const updated = await api.post<CompMod>(`/api/companies/me/modules/${key}/toggle`, {});
-    setActiveModules(prev => {
-      const exists = prev.find(cm => cm.module_key === key);
-      return exists ? prev.map(cm => cm.module_key === key ? updated : cm) : [...prev, updated];
-    });
+    const existing = activeModules.find(cm => cm.module_key === key);
+    if (existing) {
+      await supabase.from("company_modules")
+        .update({ active: !existing.active })
+        .eq("company_id", user.company_id).eq("module_key", key);
+      setActiveModules(prev => prev.map(cm => cm.module_key === key ? { ...cm, active: !cm.active } : cm));
+    } else {
+      await supabase.from("company_modules")
+        .insert({ company_id: user.company_id, module_key: key, active: true });
+      setActiveModules(prev => [...prev, { module_key: key, active: true }]);
+    }
     setSaving(false);
   };
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail) return;
+    if (!inviteEmail || !user?.company_id) return;
     setInviting(true);
-    const inv = await api.post<{ token: string }>("/api/companies/me/invitations", { email: inviteEmail });
-    setInviteLink(`${window.location.origin}/accept-invite?token=${inv.token}`);
+    const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+    await supabase.from("invitations").insert({
+      company_id: user.company_id,
+      email: inviteEmail.toLowerCase().trim(),
+      role: "user",
+      token,
+    });
+    setInviteLink(`${window.location.origin}/accept-invite?token=${token}`);
     setInviteEmail("");
     setInviting(false);
   };

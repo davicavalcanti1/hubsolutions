@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,15 +20,17 @@ export function HubDashboard() {
   const [loading, setLoading]             = useState(true);
 
   useEffect(() => {
+    if (!user?.company_id) return;
     Promise.all([
-      api.get<Module[]>("/api/modules"),
-      api.get<CompanyModule[]>("/api/companies/me/modules"),
-    ]).then(([mods, cm]) => {
-      setAllModules(mods);
-      setActiveModules(cm.filter(m => m.active));
+      supabase.from("modules").select("key, name, description, price_monthly").order("name"),
+      supabase.from("company_modules").select("module_key, active")
+        .eq("company_id", user.company_id).eq("active", true),
+    ]).then(([{ data: mods }, { data: cm }]) => {
+      setAllModules(mods ?? []);
+      setActiveModules(cm ?? []);
       setLoading(false);
     });
-  }, []);
+  }, [user?.company_id]);
 
   const isActive = (key: string) => activeModules.some(cm => cm.module_key === key);
 

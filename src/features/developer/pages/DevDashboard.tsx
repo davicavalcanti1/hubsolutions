@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { Building2, Users, TrendingUp, Star, HardDrive, ArrowUpRight } from "lucide-react";
 
@@ -51,10 +51,62 @@ export function DevDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      api.get<Overview>("/api/developer/overview"),
-      api.get<Tenant[]>("/api/developer/tenants"),
-    ]).then(([o, t]) => { setOv(o); setTenants(t.slice(0, 6)); setLoading(false); });
+    async function load() {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      const [
+        { count: totalTenants },
+        { count: newTenants30d },
+        { count: totalUsers },
+        { count: pendingRequests },
+        { count: plannedFeatures },
+        { data: companiesData },
+        { data: tenantsData },
+      ] = await Promise.all([
+        supabase.from("companies").select("*", { count: "exact", head: true }).eq("active", true),
+        supabase.from("companies").select("*", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo),
+        supabase.from("users").select("*", { count: "exact", head: true }).neq("role", "superadmin"),
+        supabase.from("feature_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("feature_requests").select("*", { count: "exact", head: true }).eq("status", "planned"),
+        supabase.from("companies").select("storage_used_bytes, plans:plan_id(price_monthly)").eq("active", true),
+        supabase.from("companies")
+          .select("id, name, slug, primary_color, active, created_at, plans:plan_id(name), users(id), company_modules(id, active)")
+          .order("created_at", { ascending: false })
+          .limit(6),
+      ]);
+
+      const mrr = (companiesData ?? []).reduce((acc, c) => acc + ((c.plans as any)?.price_monthly ?? 0), 0);
+      const totalStorage = (companiesData ?? []).reduce((acc, c) => acc + (c.storage_used_bytes ?? 0), 0);
+
+      const overview: Overview = {
+        total_tenants:     totalTenants ?? 0,
+        new_tenants_30d:   newTenants30d ?? 0,
+        total_users:       totalUsers ?? 0,
+        mrr,
+        pending_requests:  pendingRequests ?? 0,
+        planned_features:  plannedFeatures ?? 0,
+        total_storage_used: totalStorage,
+      };
+
+      const tenantList = (tenantsData ?? []).map(t => ({
+        id:             t.id,
+        name:           t.name,
+        slug:           t.slug,
+        primary_color:  t.primary_color ?? "#a3e635",
+        active:         t.active,
+        created_at:     t.created_at,
+        plan_name:      (t.plans as any)?.name ?? "free",
+        user_count:     (t.users as any[])?.length ?? 0,
+        active_modules: (t.company_modules as any[])?.filter((m: any) => m.active).length ?? 0,
+        storage_pct:    0,
+      }));
+
+      setOv(overview);
+      setTenants(tenantList);
+      setLoading(false);
+    }
+
+    load();
   }, []);
 
   if (loading) return (

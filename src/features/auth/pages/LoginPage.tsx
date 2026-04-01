@@ -1,45 +1,44 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
-interface UserProfile {
-  role: "superadmin" | "admin" | "user";
-  company_slug: string | null;
-}
-
 export function LoginPage() {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { signIn, user, loading } = useAuth();
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading]   = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError]       = useState<string | null>(null);
+
+  // Once user is set after sign-in, redirect based on role
+  useEffect(() => {
+    if (!loading && user) {
+      if (user.role === "superadmin") {
+        navigate("/developer", { replace: true });
+      } else if (user.company_slug) {
+        navigate(`/${user.company_slug}`, { replace: true });
+      } else {
+        navigate("/hub", { replace: true });
+      }
+    }
+  }, [user, loading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+    setSubmitting(true);
     try {
       await signIn(email, password);
-      // Carrega perfil para decidir o redirect
-      const me = await api.get<UserProfile>("/api/auth/me");
-      if (me.role === "superadmin") {
-        navigate("/developer", { replace: true });
-      } else if (me.company_slug) {
-        navigate(`/${me.company_slug}`, { replace: true });
-      } else {
-        navigate("/hub", { replace: true });
-      }
+      // Redirect is handled by the useEffect above once user is loaded
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao entrar");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -69,8 +68,8 @@ export function LoginPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              <Button type="submit" className="w-full" disabled={submitting || loading}>
+                {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Entrar
               </Button>
             </CardFooter>

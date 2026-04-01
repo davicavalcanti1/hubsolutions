@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { useTenantTheme } from "@/features/tenant/context/TenantThemeContext";
 import type { OccurrenceType, OccurrenceSubtype } from "../types/occurrence";
 import { subtypesByType, typeLabels, subtypeLabels } from "../types/occurrence";
@@ -51,6 +52,19 @@ const INITIAL: FormData = {
   houveDano: false, descricaoDano: "", observacoes: "",
 };
 
+function genProtocolo(tipo: OccurrenceType): string {
+  const prefix: Record<OccurrenceType, string> = {
+    administrativa:     "ADM",
+    revisao_exame:      "REX",
+    enfermagem:         "ENF",
+    paciente:           "PAC",
+    livre:              "LIV",
+    seguranca_paciente: "SEG",
+  };
+  const ts = Date.now().toString(36).toUpperCase();
+  return `${prefix[tipo] ?? "OCC"}-${ts}`;
+}
+
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return <label className="block text-xs font-medium text-slate-600 mb-1.5">{children}</label>;
 }
@@ -88,6 +102,7 @@ function TextArea({ value, onChange, placeholder, rows = 3 }: {
 export function NovaOcorrenciaPage() {
   const { slug } = useParams<{ slug: string }>();
   const { theme } = useTenantTheme();
+  const { user } = useAuth();
   const primary = theme?.primary_color ?? "#2563eb";
 
   const [step, setStep] = useState<Step>("type");
@@ -116,28 +131,38 @@ export function NovaOcorrenciaPage() {
     if (!form.tipo)               return setError("Selecione o tipo de ocorrência");
     if (!form.descricaoDetalhada) return setError("Descrição detalhada é obrigatória");
     if (!form.dataHoraEvento)     return setError("Data e hora do evento são obrigatórias");
+    if (!user?.company_id)        return setError("Usuário sem empresa associada");
 
     setSaving(true);
     setError(null);
     try {
-      await api.post("/api/ocorrencias", {
-        tipo:    form.tipo,
-        subtipo: form.subtipo,
-        dados: {
-          registrador:        { setor: form.setor, cargo: form.cargo },
-          unidadeLocal:       form.unidadeLocal,
-          dataHoraEvento:     form.dataHoraEvento,
-          paciente:           { nomeCompleto: form.pacienteNome },
-          descricaoDetalhada: form.descricaoDetalhada,
-          acaoImediata:       form.acaoImediata,
-          houveDano:          form.houveDano,
-          descricaoDano:      form.descricaoDano,
-          observacoes:        form.observacoes,
-        },
-      });
+      const { error: insertError } = await supabase
+        .from("occurrences")
+        .insert({
+          company_id:      user.company_id,
+          protocolo:       genProtocolo(form.tipo),
+          tipo:            form.tipo,
+          subtipo:         form.subtipo,
+          status:          "registrada",
+          historico_status: [],
+          criado_por:      user.id,
+          dados: {
+            registrador:        { setor: form.setor, cargo: form.cargo },
+            unidadeLocal:       form.unidadeLocal,
+            dataHoraEvento:     form.dataHoraEvento,
+            paciente:           { nomeCompleto: form.pacienteNome },
+            descricaoDetalhada: form.descricaoDetalhada,
+            acaoImediata:       form.acaoImediata,
+            houveDano:          form.houveDano,
+            descricaoDano:      form.descricaoDano,
+            observacoes:        form.observacoes,
+          },
+        });
+
+      if (insertError) throw new Error(insertError.message);
       setStep("done");
-    } catch {
-      setError("Erro ao registrar ocorrência. Tente novamente.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erro ao registrar ocorrência. Tente novamente.");
     } finally {
       setSaving(false);
     }

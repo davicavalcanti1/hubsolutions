@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, ToggleLeft, ToggleRight, Star, Check, X as XIcon, Plus, Loader2, Trash2, Eye, EyeOff } from "lucide-react";
 
 interface TenantDetail {
@@ -32,30 +32,115 @@ function bytes(n: number) {
 
 export function TenantDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [tenant, setTenant] = useState<TenantDetail | null>(null);
-  const [tab, setTab]       = useState<"overview" | "modules" | "members" | "requests">("overview");
-  const [saving, setSaving] = useState(false);
+  const [tenant, setTenant]       = useState<TenantDetail | null>(null);
+  const [companyMods, setCompanyMods] = useState<{ module_key: string; active: boolean }[]>([]);
+  const [tab, setTab]             = useState<"overview" | "modules" | "members" | "requests">("overview");
+  const [saving, setSaving]       = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
 
-  const loadTenant = () => {
+  const loadTenant = async () => {
     if (!id) return;
-    api.get<TenantDetail>(`/api/developer/tenants/${id}`).then(setTenant);
+
+    const [
+      { data: company },
+      { data: members },
+      { data: companyModsData },
+      { data: allMods },
+      { data: requests },
+    ] = await Promise.all([
+      supabase.from("companies").select("*, plans:plan_id(name, price_monthly, storage_limit_bytes, max_users)").eq("id", id).single(),
+      supabase.from("users").select("id, full_name, email, role, created_at").eq("company_id", id).order("created_at"),
+      supabase.from("company_modules").select("module_key, active").eq("company_id", id),
+      supabase.from("modules").select("key, name, description"),
+      supabase.from("feature_requests").select("id, title, status, votes, created_at").eq("company_id", id).order("created_at", { ascending: false }).limit(10),
+    ]);
+
+    if (!company) return;
+
+    const plan = (company as any).plans as any;
+    const modsData = companyModsData ?? [];
+    setCompanyMods(modsData);
+
+    const modules = (allMods ?? []).map(m => ({
+      module_key:  m.key,
+      active:      modsData.find(cm => cm.module_key === m.key)?.active ?? false,
+      name:        m.name,
+      description: m.description ?? "",
+    }));
+
+    setTenant({
+      id:                   company.id,
+      name:                 company.name,
+      slug:                 company.slug,
+      email:                company.email,
+      display_name:         company.display_name,
+      logo_url:             company.logo_url,
+      primary_color:        company.primary_color ?? "#a3e635",
+      secondary_color:      company.secondary_color ?? "#ffffff",
+      active:               company.active,
+      storage_used_bytes:   company.storage_used_bytes ?? 0,
+      created_at:           company.created_at,
+      plan_name:            plan?.name ?? "free",
+      price_monthly:        plan?.price_monthly ?? 0,
+      storage_limit_bytes:  plan?.storage_limit_bytes ?? 0,
+      max_users:            plan?.max_users ?? 5,
+      members:              (members ?? []) as any,
+      modules,
+      recent_requests:      (requests ?? []) as any,
+    });
   };
 
   useEffect(() => { loadTenant(); }, [id]);
 
   const patch = async (body: Record<string, unknown>) => {
+    if (!id || !tenant) return;
+    setSaving(true);
+
+    // Handle plan_name → look up plan_id
+    if ("plan_name" in body) {
+      const { data: plan } = await supabase
+        .from("plans")
+        .select("id")
+        .eq("name", body.plan_name as string)
+        .maybeSingle();
+      if (plan) {
+        await supabase.from("companies").update({ plan_id: plan.id }).eq("id", id);
+      }
+    } else {
+      await supabase.from("companies").update(body).eq("id", id);
+    }
+
+    await loadTenant();
+    setSaving(false);
+  };
+
+  const toggleModule = async (key: string) => {
     if (!id) return;
     setSaving(true);
-    const updated = await api.patch<TenantDetail>(`/api/developer/tenants/${id}`, body);
-    setTenant(prev => prev ? { ...prev, ...updated } : prev);
+    const existing = companyMods.find(cm => cm.module_key === key);
+    if (existing) {
+      await supabase
+        .from("company_modules")
+        .update({ active: !existing.active })
+        .eq("company_id", id)
+        .eq("module_key", key);
+    } else {
+      await supabase
+        .from("company_modules")
+        .insert({ company_id: id, module_key: key, active: true });
+    }
+    await loadTenant();
     setSaving(false);
   };
 
   const deleteMember = async (userId: string) => {
     if (!id || !confirm("Remover este membro? Ele perderá acesso à plataforma.")) return;
     try {
-      await api.delete(`/api/developer/tenants/${id}/members/${userId}`);
+      const { data, error: fnError } = await supabase.functions.invoke("delete-member", {
+        body: { user_id: userId },
+      });
+      if (fnError) throw new Error(fnError.message);
+      if (data?.error) throw new Error(data.error);
       setTenant(prev => prev ? { ...prev, members: prev.members.filter(m => m.id !== userId) } : prev);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Erro ao remover membro");
@@ -172,19 +257,7 @@ export function TenantDetailPage() {
                 </div>
                 <button
                   disabled={saving}
-                  onClick={async () => {
-                    setSaving(true);
-                    const updated = await api.patch<{ module_key: string; active: boolean }>(
-                      `/api/developer/tenants/${id}/modules/${mod.module_key}`, {}
-                    );
-                    setTenant(prev => prev ? {
-                      ...prev,
-                      modules: prev.modules.map(m =>
-                        m.module_key === updated.module_key ? { ...m, active: updated.active } : m
-                      ),
-                    } : prev);
-                    setSaving(false);
-                  }}
+                  onClick={() => toggleModule(mod.module_key)}
                   className="ml-auto shrink-0 transition-opacity disabled:opacity-40"
                 >
                   {mod.active
@@ -284,12 +357,11 @@ function AddMemberModal({ tenantId, onClose, onAdded }: { tenantId: string; onCl
     setError(null);
     setSaving(true);
     try {
-      await api.post(`/api/developer/tenants/${tenantId}/members`, {
-        full_name: fullName,
-        email,
-        password,
-        role,
+      const { data, error: fnError } = await supabase.functions.invoke("add-member", {
+        body: { company_id: tenantId, full_name: fullName, email, password, role },
       });
+      if (fnError) throw new Error(fnError.message);
+      if (data?.error) throw new Error(data.error);
       onAdded();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao adicionar membro");

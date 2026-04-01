@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { Search, ArrowUpRight, ToggleLeft, ToggleRight, Plus, X, Loader2, Eye, EyeOff } from "lucide-react";
 
@@ -22,6 +22,31 @@ function slugify(text: string) {
   return text.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
 
+async function fetchTenants(): Promise<Tenant[]> {
+  const { data } = await supabase
+    .from("companies")
+    .select("id, name, slug, email, active, storage_used_bytes, primary_color, created_at, plans:plan_id(name, price_monthly, storage_limit_bytes), users(id), company_modules(id, active)")
+    .order("created_at", { ascending: false });
+
+  return (data ?? []).map(c => ({
+    id:                 c.id,
+    name:               c.name,
+    slug:               c.slug,
+    email:              c.email,
+    plan_name:          (c.plans as any)?.name ?? "free",
+    price_monthly:      (c.plans as any)?.price_monthly ?? 0,
+    active:             c.active,
+    user_count:         (c.users as any[])?.length ?? 0,
+    active_modules:     (c.company_modules as any[])?.filter((m: any) => m.active).length ?? 0,
+    storage_used_bytes: c.storage_used_bytes ?? 0,
+    storage_pct:        c.storage_used_bytes && (c.plans as any)?.storage_limit_bytes
+      ? Math.round(c.storage_used_bytes / (c.plans as any).storage_limit_bytes * 1000) / 10
+      : 0,
+    primary_color:      c.primary_color ?? "#a3e635",
+    created_at:         c.created_at,
+  }));
+}
+
 export function TenantsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [search, setSearch]   = useState("");
@@ -29,15 +54,13 @@ export function TenantsPage() {
   const [showModal, setShowModal] = useState(false);
 
   const load = () => {
-    api.get<Tenant[]>("/api/developer/tenants").then(data => {
-      setTenants(data); setLoading(false);
-    });
+    fetchTenants().then(data => { setTenants(data); setLoading(false); });
   };
 
   useEffect(() => { load(); }, []);
 
   const toggleActive = async (t: Tenant) => {
-    await api.patch(`/api/developer/tenants/${t.id}`, { active: !t.active });
+    await supabase.from("companies").update({ active: !t.active }).eq("id", t.id);
     setTenants(prev => prev.map(x => x.id === t.id ? { ...x, active: !t.active } : x));
   };
 
@@ -151,15 +174,19 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
     setError(null);
     setSaving(true);
     try {
-      await api.post("/api/developer/tenants", {
-        company_name: companyName,
-        company_slug: companySlug,
-        company_email: companyEmail || null,
-        admin_email: adminEmail,
-        admin_name: adminName,
-        admin_password: adminPassword,
-        plan_name: planName,
+      const { data, error: fnError } = await supabase.functions.invoke("create-tenant", {
+        body: {
+          company_name:  companyName,
+          company_slug:  companySlug,
+          company_email: companyEmail || null,
+          admin_email:   adminEmail,
+          admin_name:    adminName,
+          admin_password: adminPassword,
+          plan_name:     planName,
+        },
       });
+      if (fnError) throw new Error(fnError.message);
+      if (data?.error) throw new Error(data.error);
       onCreated();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao criar empresa");

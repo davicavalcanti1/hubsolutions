@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import type { Occurrence, OccurrenceStatus, OccurrenceType } from "../types/occurrence";
 import { statusConfig, typeLabels } from "../types/occurrence";
 import { ArrowLeft, Search, Loader2 } from "lucide-react";
@@ -14,10 +14,11 @@ export function OcorrenciasHistoricoPage() {
   const [statusFilter, setStatusFilter] = useState<OccurrenceStatus | "all">("all");
 
   useEffect(() => {
-    api.get<Occurrence[]>("/api/ocorrencias").then(data => {
-      setOccurrences(data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    supabase
+      .from("occurrences")
+      .select("*")
+      .order("criado_em", { ascending: false })
+      .then(({ data }) => { setOccurrences((data as any) ?? []); setLoading(false); }, () => setLoading(false));
   }, []);
 
   const filtered = occurrences.filter(o => {
