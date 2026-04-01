@@ -66,7 +66,7 @@ app.get("/api/health", (_req, res) => res.json({ ok: true, ts: new Date().toISOS
 // ── Frontend estático (produção) ──────────────────────────────────────────────
 const publicDir = path.resolve(__dirname, "../../public");
 app.use(express.static(publicDir));
-app.get("*", (_req, res) => {
+app.get("/{*splat}", (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
 
