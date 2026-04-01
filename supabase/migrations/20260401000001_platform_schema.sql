@@ -159,6 +159,12 @@ INSERT INTO public.modules (key, name, description, price_monthly) VALUES
   ('enfermagem',    'Central de Enfermagem', 'Chamados e central de enfermagem',        199.00)
 ON CONFLICT (key) DO NOTHING;
 
+-- Novos módulos adicionados
+INSERT INTO public.modules (key, name, description, price_monthly) VALUES
+  ('ocorrencias', 'Ocorrências',  'Registro e controle de ocorrências operacionais', 149.00),
+  ('escala',      'Escala',       'Gestão de escalas, locais, funcionários e médicos', 199.00)
+ON CONFLICT (key) DO NOTHING;
+
 -- ── RLS: desabilitada por padrão (acesso controlado pelo backend) ──
 -- O backend usa service_role para contornar RLS quando necessário.
 -- Se quiser habilitar RLS no futuro, adicione as políticas abaixo.

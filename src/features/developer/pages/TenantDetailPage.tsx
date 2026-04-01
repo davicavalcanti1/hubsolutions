@@ -1,14 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "@/lib/api";
-import {
-  ArrowLeft, Server, Cloud,
-  ToggleLeft, ToggleRight, Star, Check, X as XIcon,
-} from "lucide-react";
+import { ArrowLeft, ToggleLeft, ToggleRight, Star, Check, X as XIcon } from "lucide-react";
 
 interface TenantDetail {
   id: string; name: string; slug: string; email: string | null;
-  plan_name: string; price_monthly: number; db_tier: string;
+  plan_name: string; price_monthly: number;
   active: boolean; storage_used_bytes: number; storage_limit_bytes: number;
   primary_color: string; secondary_color: string;
   display_name: string | null; logo_url: string | null;
@@ -62,12 +59,10 @@ export function TenantDetailPage() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
-      {/* Back */}
       <Link to="/developer/tenants" className="flex items-center gap-1.5 text-sm text-white/30 hover:text-white/60 transition-colors mb-6">
         <ArrowLeft className="h-4 w-4" /> Empresas
       </Link>
 
-      {/* Header */}
       <div className="flex items-start gap-4 mb-8">
         <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black shrink-0"
           style={{ background: `${tenant.primary_color}20`, color: tenant.primary_color, border: `1px solid ${tenant.primary_color}30` }}>
@@ -81,21 +76,10 @@ export function TenantDetailPage() {
               tenant.plan_name === "enterprise" ? "bg-violet-400/15 text-violet-400 border-violet-400/25" :
               "bg-white/[0.06] text-white/30 border-white/[0.08]"
             }`}>{tenant.plan_name}</span>
-            <span className={`text-xs px-2 py-1 rounded-full border ${
-              tenant.db_tier === "local"
-                ? "bg-sky-400/[0.08] text-sky-400 border-sky-400/20"
-                : "bg-white/[0.06] text-white/30 border-white/[0.08]"
-            }`}>
-              {tenant.db_tier === "local" ? <Server className="inline h-3 w-3 mr-1" /> : <Cloud className="inline h-3 w-3 mr-1" />}
-              {tenant.db_tier}
-            </span>
           </div>
           <p className="text-white/30 text-sm mt-1">/{tenant.slug}{tenant.email ? ` · ${tenant.email}` : ""}</p>
         </div>
-
-        <button
-          onClick={() => patch({ active: !tenant.active })}
-          disabled={saving}
+        <button onClick={() => patch({ active: !tenant.active })} disabled={saving}
           className="flex items-center gap-2 text-sm px-4 py-2 rounded-xl border transition-colors"
           style={tenant.active
             ? { borderColor: "rgba(163,230,53,0.25)", background: "rgba(163,230,53,0.06)", color: "#a3e635" }
@@ -106,27 +90,19 @@ export function TenantDetailPage() {
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 border-b border-white/[0.06] mb-7">
         {(["overview", "modules", "members", "requests"] as const).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
+          <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2.5 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
-              tab === t
-                ? "text-lime-400 border-lime-400"
-                : "text-white/30 border-transparent hover:text-white/60"
-            }`}
-          >
+              tab === t ? "text-lime-400 border-lime-400" : "text-white/30 border-transparent hover:text-white/60"
+            }`}>
             {t === "requests" ? "Sugestões" : t === "overview" ? "Visão Geral" : t === "modules" ? "Módulos" : "Membros"}
           </button>
         ))}
       </div>
 
-      {/* Overview tab */}
       {tab === "overview" && (
         <div className="space-y-5">
-          {/* Storage */}
           <div className="rounded-2xl border border-white/[0.07] bg-[#0d0d0d] p-6">
             <h3 className="text-sm font-semibold mb-4">Armazenamento</h3>
             <div className="flex items-center justify-between text-sm mb-3">
@@ -140,7 +116,6 @@ export function TenantDetailPage() {
             <p className="text-xs text-white/25 mt-2">{storagePct.toFixed(1)}% utilizado</p>
           </div>
 
-          {/* Plan + quick actions */}
           <div className="rounded-2xl border border-white/[0.07] bg-[#0d0d0d] p-6">
             <h3 className="text-sm font-semibold mb-4">Plano atual: <span className="text-lime-400 capitalize">{tenant.plan_name}</span></h3>
             <p className="text-xs text-white/30 mb-4">R$ {Number(tenant.price_monthly).toFixed(2)}/mês</p>
@@ -151,19 +126,16 @@ export function TenantDetailPage() {
                     tenant.plan_name === p
                       ? "border-lime-400/30 bg-lime-400/10 text-lime-400"
                       : "border-white/[0.08] text-white/30 hover:border-white/20 hover:text-white/60"
-                  }`}>
-                  {p}
+                  }`}>{p}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Color preview */}
           <div className="rounded-2xl border border-white/[0.07] bg-[#0d0d0d] p-6">
             <h3 className="text-sm font-semibold mb-4">White-label</h3>
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl border border-white/10"
-                style={{ background: tenant.primary_color }} />
+              <div className="w-10 h-10 rounded-xl border border-white/10" style={{ background: tenant.primary_color }} />
               <div>
                 <p className="text-xs font-medium">Cor primária</p>
                 <p className="text-xs text-white/30 font-mono">{tenant.primary_color}</p>
@@ -176,7 +148,6 @@ export function TenantDetailPage() {
         </div>
       )}
 
-      {/* Modules tab */}
       {tab === "modules" && (
         <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
           <div className="divide-y divide-white/[0.04]">
@@ -187,21 +158,15 @@ export function TenantDetailPage() {
                   <p className="text-xs text-white/30">{mod.description}</p>
                 </div>
                 <div className="ml-auto">
-                  {mod.active
-                    ? <ToggleRight className="h-5 w-5 text-lime-400" />
-                    : <ToggleLeft className="h-5 w-5 text-white/20" />
-                  }
+                  {mod.active ? <ToggleRight className="h-5 w-5 text-lime-400" /> : <ToggleLeft className="h-5 w-5 text-white/20" />}
                 </div>
               </div>
             ))}
-            {tenant.modules.length === 0 && (
-              <p className="py-12 text-center text-sm text-white/20">Nenhum módulo ativo.</p>
-            )}
+            {tenant.modules.length === 0 && <p className="py-12 text-center text-sm text-white/20">Nenhum módulo ativo.</p>}
           </div>
         </div>
       )}
 
-      {/* Members tab */}
       {tab === "members" && (
         <div className="rounded-2xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
           <div className="divide-y divide-white/[0.04]">
@@ -217,14 +182,11 @@ export function TenantDetailPage() {
                 <span className="ml-auto text-[10px] font-bold uppercase px-2 py-1 rounded-full bg-white/[0.06] text-white/30">{m.role}</span>
               </div>
             ))}
-            {tenant.members.length === 0 && (
-              <p className="py-12 text-center text-sm text-white/20">Nenhum membro.</p>
-            )}
+            {tenant.members.length === 0 && <p className="py-12 text-center text-sm text-white/20">Nenhum membro.</p>}
           </div>
         </div>
       )}
 
-      {/* Requests tab */}
       {tab === "requests" && (
         <div className="space-y-3">
           {tenant.recent_requests.map(req => (
@@ -234,18 +196,14 @@ export function TenantDetailPage() {
                 <p className="text-xs text-white/25 mt-1">{new Date(req.created_at).toLocaleDateString("pt-BR")}</p>
               </div>
               <div className="flex items-center gap-2.5">
-                <span className="text-xs text-white/30 flex items-center gap-1">
-                  <Star className="h-3 w-3" />{req.votes}
-                </span>
+                <span className="text-xs text-white/30 flex items-center gap-1"><Star className="h-3 w-3" />{req.votes}</span>
                 <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full border ${STATUS_COLORS[req.status] ?? "bg-white/[0.06] text-white/30 border-white/[0.08]"}`}>
                   {req.status}
                 </span>
               </div>
             </div>
           ))}
-          {tenant.recent_requests.length === 0 && (
-            <p className="py-12 text-center text-sm text-white/20">Nenhuma sugestão.</p>
-          )}
+          {tenant.recent_requests.length === 0 && <p className="py-12 text-center text-sm text-white/20">Nenhuma sugestão.</p>}
         </div>
       )}
     </div>
