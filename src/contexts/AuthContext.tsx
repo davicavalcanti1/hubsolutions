@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
 
-interface User {
+interface AppUser {
   id: string;
   supabase_user_id: string;
   company_id: string | null;
@@ -15,16 +16,19 @@ interface User {
 }
 
 interface AuthContextValue {
-  user: User | null;
+  user: AppUser | null;
+  session: Session | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
-  user: null, loading: true,
-  signIn: async () => {}, signOut: async () => {}, refreshUser: async () => {},
+  user: null, session: null, loading: true,
+  signIn: async () => ({ error: null }),
+  signOut: async () => {},
+  refreshUser: async () => {},
 });
 
 export function useAuth() {
@@ -32,94 +36,101 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser]       = useState<User | null>(null);
+  const [user, setUser]       = useState<AppUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function loadProfile() {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) { setUser(null); return; }
+  const fetchProfile = async (authUserId: string) => {
+    try {
+      const { data: profile } = await supabase
+        .from("users")
+        .select("id, supabase_user_id, company_id, full_name, email, role, avatar_url, companies:company_id(name, slug, logo_url)")
+        .eq("supabase_user_id", authUserId)
+        .maybeSingle();
 
-    const { data: profile } = await supabase
-      .from("users")
-      .select("id, supabase_user_id, company_id, full_name, email, role, avatar_url, companies:company_id(name, slug, logo_url)")
-      .eq("supabase_user_id", authUser.id)
-      .maybeSingle();
+      if (!profile) {
+        await supabase.auth.signOut();
+        setUser(null);
+        return;
+      }
 
-    if (!profile) {
-      await supabase.auth.signOut();
+      const co = profile.companies as any;
+      setUser({
+        id:               profile.id,
+        supabase_user_id: profile.supabase_user_id ?? authUserId,
+        company_id:       profile.company_id,
+        full_name:        profile.full_name,
+        email:            profile.email,
+        role:             profile.role as "superadmin" | "admin" | "user",
+        avatar_url:       profile.avatar_url ?? null,
+        company_name:     co?.name ?? null,
+        company_slug:     co?.slug ?? null,
+        company_logo:     co?.logo_url ?? null,
+      });
+    } catch (err) {
+      console.error("fetchProfile error:", err);
       setUser(null);
-      return;
     }
-
-    const co = profile.companies as any;
-    setUser({
-      id:               profile.id,
-      supabase_user_id: profile.supabase_user_id ?? authUser.id,
-      company_id:       profile.company_id,
-      full_name:        profile.full_name,
-      email:            profile.email,
-      role:             profile.role as "superadmin" | "admin" | "user",
-      avatar_url:       profile.avatar_url ?? null,
-      company_name:     co?.name ?? null,
-      company_slug:     co?.slug ?? null,
-      company_logo:     co?.logo_url ?? null,
-    });
-  }
+  };
 
   useEffect(() => {
-    let mounted = true;
-
-    const timeout = <T,>(ms: number, fallback: T): Promise<T> =>
-      new Promise(resolve => setTimeout(() => resolve(fallback), ms));
-
-    // Carga inicial com timeout de 4s — getSession pode travar se token precisar de refresh
-    Promise.race([
-      supabase.auth.getSession(),
-      timeout(4000, { data: { session: null } } as Awaited<ReturnType<typeof supabase.auth.getSession>>),
-    ]).then(async ({ data: { session } }) => {
-      if (!mounted) return;
+    // Fase 1 — carga inicial via getSession (mesmo padrão do controleoperacional)
+    const initSession = async () => {
       try {
-        if (session) await loadProfile();
-        else setUser(null);
-      } catch {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        console.error("initSession error:", err);
         setUser(null);
       } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
-    });
+    };
 
-    // Subscription para mudanças futuras (login / logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!mounted) return;
-      try {
-        if (session) await loadProfile();
-        else setUser(null);
-      } catch {
+    initSession();
+
+    // Fase 2 — subscription para mudanças futuras (login / logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+
+      if (session?.user) {
+        // setTimeout(0) evita deadlock do Supabase ao fazer queries dentro do callback
+        setTimeout(() => {
+          fetchProfile(session.user.id);
+        }, 0);
+      } else {
         setUser(null);
       }
+
+      // Garante que loading resolve mesmo que initSession já tenha rodado
+      setLoading(false);
     });
 
-    return () => { mounted = false; subscription.unsubscribe(); };
+    return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const signInPromise = supabase.auth.signInWithPassword({ email, password });
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Tempo limite excedido. Verifique sua conexão ou se o serviço está disponível.")), 10000)
-    );
-    const { error } = await Promise.race([signInPromise, timeoutPromise]);
-    if (error) throw new Error(translateSupabaseError(error.message));
+  const signIn = async (email: string, password: string): Promise<{ error: Error | null }> => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error ? new Error(translateSupabaseError(error.message)) : null };
   };
 
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setSession(null);
   };
 
-  const refreshUser = async () => { await loadProfile(); };
+  const refreshUser = async () => {
+    if (session?.user) await fetchProfile(session.user.id);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut, refreshUser }}>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signOut, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

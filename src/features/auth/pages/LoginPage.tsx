@@ -32,14 +32,9 @@ export function LoginPage() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-    try {
-      await signIn(email, password);
-      // Redirect is handled by the useEffect above once user is loaded
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao entrar");
-    } finally {
-      setSubmitting(false);
-    }
+    const { error: signInError } = await signIn(email, password);
+    if (signInError) setError(signInError.message);
+    setSubmitting(false);
   };
 
   return (
