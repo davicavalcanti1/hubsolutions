@@ -103,9 +103,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const signInPromise = supabase.auth.signInWithPassword({ email, password });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Tempo limite excedido. Verifique sua conexão ou se o serviço está disponível.")), 10000)
+    );
+    const { error } = await Promise.race([signInPromise, timeoutPromise]);
     if (error) throw new Error(translateSupabaseError(error.message));
-    // onAuthStateChange dispara automaticamente e chama loadProfile
   };
 
   const signOut = async () => {
