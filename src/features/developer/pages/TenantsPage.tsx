@@ -202,9 +202,16 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
           module_keys:    selectedModules,
         },
       });
-      // data pode conter o body mesmo em erro — extrai a mensagem real
-      const msg = data?.error ?? fnError?.message;
-      if (msg) throw new Error(msg);
+      if (fnError) {
+        // Tenta extrair mensagem real do body da resposta
+        let msg = fnError.message;
+        try {
+          const body = await (fnError as any).context?.json();
+          if (body?.error) msg = body.error;
+        } catch {}
+        throw new Error(msg);
+      }
+      if (data?.error) throw new Error(data.error);
       onCreated();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao criar empresa");
