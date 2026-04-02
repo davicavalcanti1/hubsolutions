@@ -67,25 +67,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Safety: resolve o loading mesmo se onAuthStateChange ou loadProfile travarem
-    const safety = setTimeout(() => setLoading(false), 6000);
+    let mounted = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // Carga inicial via getSession — confiável e imediato
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
       try {
-        if (session) {
-          await loadProfile();
-        } else {
-          setUser(null);
-        }
+        if (session) await loadProfile();
+        else setUser(null);
       } catch {
         setUser(null);
       } finally {
-        clearTimeout(safety); // cancela só depois de tudo terminar
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     });
 
-    return () => { clearTimeout(safety); subscription.unsubscribe(); };
+    // Subscription apenas para mudanças futuras (login / logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
+      try {
+        if (session) await loadProfile();
+        else setUser(null);
+      } catch {
+        setUser(null);
+      }
+    });
+
+    return () => { mounted = false; subscription.unsubscribe(); };
   }, []);
 
   const signIn = async (email: string, password: string) => {
