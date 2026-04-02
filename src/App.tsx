@@ -34,6 +34,10 @@ const NovaOcorrenciaPage    = lazy(() => import("@/features/ocorrencias/pages/No
 const OcorrenciaDetailPage  = lazy(() => import("@/features/ocorrencias/pages/OcorrenciaDetailPage").then(m => ({ default: m.OcorrenciaDetailPage })));
 const OcorrenciasHistoricoPage = lazy(() => import("@/features/ocorrencias/pages/OcorrenciasHistoricoPage").then(m => ({ default: m.OcorrenciasHistoricoPage })));
 const EscalaPage            = lazy(() => import("@/features/escala/pages/EscalaPage").then(m => ({ default: m.EscalaPage })));
+const CheckinDashboardPage  = lazy(() => import("@/features/checkin/pages/CheckinDashboardPage").then(m => ({ default: m.CheckinDashboardPage })));
+const CheckinPublicoPage    = lazy(() => import("@/features/checkin/pages/CheckinPublicoPage"));
+const QueuePublicoPage      = lazy(() => import("@/features/checkin/pages/QueuePublicoPage"));
+const TVDisplayPage         = lazy(() => import("@/features/checkin/pages/TVDisplayPage"));
 const DevLayout             = lazy(() => import("@/features/developer/layout/DevLayout").then(m => ({ default: m.DevLayout })));
 const DevDashboard          = lazy(() => import("@/features/developer/pages/DevDashboard").then(m => ({ default: m.DevDashboard })));
 const TenantsPage           = lazy(() => import("@/features/developer/pages/TenantsPage").then(m => ({ default: m.TenantsPage })));
@@ -125,9 +129,12 @@ function AppRoutes() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Public */}
-        <Route path="/"              element={<LandingPage />} />
-        <Route path="/login"         element={<PublicRoute><LoginPage /></PublicRoute>} />
-        <Route path="/accept-invite" element={<AcceptInvitePage />} />
+        <Route path="/"                          element={<LandingPage />} />
+        <Route path="/login"                     element={<PublicRoute><LoginPage /></PublicRoute>} />
+        <Route path="/accept-invite"             element={<AcceptInvitePage />} />
+        <Route path="/checkin/:companySlug"      element={<CheckinPublicoPage />} />
+        <Route path="/queue/:token"              element={<QueuePublicoPage />} />
+        <Route path="/checkin-tv/:tvSlug"        element={<TVDisplayPage />} />
 
         {/* Hub redirect */}
         <Route path="/hub"          element={<HubRedirect />} />
@@ -152,7 +159,7 @@ function AppRoutes() {
           <Route path="ocorrencias/:id"       element={<ProtectedRoute><OcorrenciaDetailPage /></ProtectedRoute>} />
           <Route path="escala"                element={<ProtectedRoute><EscalaPage /></ProtectedRoute>} />
           <Route path="controlemidia"         element={<ProtectedRoute><ComingSoon label="Controle de Mídia" /></ProtectedRoute>} />
-          <Route path="checkin"               element={<ProtectedRoute><ComingSoon label="Check-in" /></ProtectedRoute>} />
+          <Route path="checkin"               element={<ProtectedRoute><CheckinDashboardPage /></ProtectedRoute>} />
           <Route path="enfermagem"            element={<ProtectedRoute><ComingSoon label="Central de Enfermagem" /></ProtectedRoute>} />
         </Route>
 
