@@ -325,8 +325,31 @@ export function LandingPage() {
           </div>
         </div>
 
-        {/* Carousel — 3 visíveis, desliza 1 por vez */}
-        <div className="relative max-w-6xl mx-auto px-6"
+        {/* Carousel mobile — scroll horizontal com snap */}
+        <div className="md:hidden overflow-x-auto flex gap-4 pb-4 px-6 snap-x snap-mandatory scrollbar-none">
+          {MODULES.map(mod => (
+            <div key={mod.name}
+              className="snap-center shrink-0 w-[85vw] rounded-2xl border border-slate-200 bg-white p-6 overflow-hidden">
+              <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${mod.color} mb-4 shadow-sm`}>
+                <mod.icon className="h-5 w-5 text-white" />
+              </div>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.15em] mb-2">{mod.tag}</p>
+              <h3 className="text-xl font-bold mb-1 text-slate-900">{mod.name}</h3>
+              <p className={`text-sm font-medium bg-gradient-to-r ${mod.color} bg-clip-text text-transparent mb-3`}>{mod.headline}</p>
+              <p className="text-sm text-slate-400 leading-relaxed mb-5">{mod.description}</p>
+              <ul className="space-y-2">
+                {mod.features.map(f => (
+                  <li key={f} className="flex items-center gap-2 text-sm text-slate-600">
+                    <Check className="h-3.5 w-3.5 text-blue-500 shrink-0" />{f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* Carousel desktop — 3 visíveis, desliza 1 por vez */}
+        <div className="relative hidden md:block max-w-6xl mx-auto px-6"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}>
 
