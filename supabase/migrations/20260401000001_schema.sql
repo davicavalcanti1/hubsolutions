@@ -140,6 +140,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS occurrences_atualizado_em ON public.occurrences;
 CREATE TRIGGER occurrences_atualizado_em
   BEFORE UPDATE ON public.occurrences
   FOR EACH ROW EXECUTE FUNCTION public.update_atualizado_em();
@@ -202,6 +203,7 @@ CREATE TABLE IF NOT EXISTS public.escalas (
 CREATE INDEX IF NOT EXISTS escalas_company_id_idx ON public.escalas (company_id);
 CREATE INDEX IF NOT EXISTS escalas_mes_ano_idx    ON public.escalas (ano DESC, mes DESC);
 
+DROP TRIGGER IF EXISTS escalas_atualizado_em ON public.escalas;
 CREATE TRIGGER escalas_atualizado_em
   BEFORE UPDATE ON public.escalas
   FOR EACH ROW EXECUTE FUNCTION public.update_atualizado_em();

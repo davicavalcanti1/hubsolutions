@@ -87,16 +87,16 @@ serve(async (req) => {
       );
     }
 
-    // Insert into users table
+    // Upsert — o trigger já pode ter criado a linha via signUp metadata
     const { data: newUser, error: insertError } = await adminClient
       .from("users")
-      .insert({
+      .upsert({
         supabase_user_id: callerAuth.id,
         full_name,
         email:      invitation.email,
         role:       invitation.role,
         company_id: invitation.company_id,
-      })
+      }, { onConflict: "supabase_user_id" })
       .select()
       .single();
 

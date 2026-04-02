@@ -45,10 +45,11 @@ export function AcceptInvitePage() {
     setSubmitting(true);
 
     try {
-      // 1. Cria conta no Supabase com o email do convite
+      // 1. Cria conta no Supabase — metadata lido pelo trigger para criar linha em users
       const { data, error: signUpError } = await supabase.auth.signUp({
         email:    invite.email,
         password,
+        options:  { data: { full_name: fullName, role: invite.role, company_id: invite.company_id } },
       });
       if (signUpError) throw new Error(signUpError.message);
 

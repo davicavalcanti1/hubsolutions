@@ -115,11 +115,12 @@ serve(async (req) => {
       );
     }
 
-    // Create admin user in Supabase Auth
+    // Create admin user in Supabase Auth (metadata lido pelo trigger)
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email:         admin_email,
       password:      admin_password,
       email_confirm: true,
+      user_metadata: { full_name: admin_name, role: "admin", company_id: company.id },
     });
 
     if (authError) {
@@ -130,16 +131,16 @@ serve(async (req) => {
       );
     }
 
-    // Insert admin into users table
+    // Upsert admin — o trigger já pode ter criado a linha via metadata
     const { data: adminUser, error: insertError } = await adminClient
       .from("users")
-      .insert({
+      .upsert({
         supabase_user_id: authData.user.id,
         full_name:        admin_name,
         email:            admin_email,
         role:             "admin",
         company_id:       company.id,
-      })
+      }, { onConflict: "supabase_user_id" })
       .select()
       .single();
 

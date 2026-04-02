@@ -29,32 +29,34 @@ RETURNS text LANGUAGE sql STABLE SECURITY DEFINER AS $$
 $$;
 
 -- ── plans ─────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "plans_public_read" ON public.plans;
 CREATE POLICY "plans_public_read"
   ON public.plans FOR SELECT USING (true);
 
 -- ── modules ───────────────────────────────────────────────────
+DROP POLICY IF EXISTS "modules_public_read" ON public.modules;
 CREATE POLICY "modules_public_read"
   ON public.modules FOR SELECT USING (true);
 
 -- ── companies ─────────────────────────────────────────────────
--- Anon e autenticado leem empresas ativas (necessário para hub /:slug)
+DROP POLICY IF EXISTS "companies_public_read_active" ON public.companies;
 CREATE POLICY "companies_public_read_active"
   ON public.companies FOR SELECT
   USING (active = true);
 
--- Superadmin vê e gerencia tudo (incluindo inativas)
+DROP POLICY IF EXISTS "companies_superadmin_all" ON public.companies;
 CREATE POLICY "companies_superadmin_all"
   ON public.companies FOR ALL
   USING (public.my_role() = 'superadmin')
   WITH CHECK (public.my_role() = 'superadmin');
 
 -- ── users ─────────────────────────────────────────────────────
--- Cada usuário lê o próprio registro
+DROP POLICY IF EXISTS "users_own_row" ON public.users;
 CREATE POLICY "users_own_row"
   ON public.users FOR SELECT
   USING (supabase_user_id = auth.uid());
 
--- Usuários da mesma empresa se veem
+DROP POLICY IF EXISTS "users_same_company_read" ON public.users;
 CREATE POLICY "users_same_company_read"
   ON public.users FOR SELECT
   USING (
@@ -62,19 +64,19 @@ CREATE POLICY "users_same_company_read"
     AND company_id = public.my_company_id()
   );
 
--- Superadmin gerencia tudo
+DROP POLICY IF EXISTS "users_superadmin_all" ON public.users;
 CREATE POLICY "users_superadmin_all"
   ON public.users FOR ALL
   USING (public.my_role() = 'superadmin')
   WITH CHECK (public.my_role() = 'superadmin');
 
 -- ── company_modules ───────────────────────────────────────────
--- Membros da empresa leem seus módulos
+DROP POLICY IF EXISTS "company_modules_company_read" ON public.company_modules;
 CREATE POLICY "company_modules_company_read"
   ON public.company_modules FOR SELECT
   USING (company_id = public.my_company_id());
 
--- Admin da empresa gerencia módulos
+DROP POLICY IF EXISTS "company_modules_admin_write" ON public.company_modules;
 CREATE POLICY "company_modules_admin_write"
   ON public.company_modules FOR ALL
   USING (
@@ -86,19 +88,19 @@ CREATE POLICY "company_modules_admin_write"
     AND public.my_role() IN ('admin', 'superadmin')
   );
 
--- Superadmin gerencia tudo
+DROP POLICY IF EXISTS "company_modules_superadmin_all" ON public.company_modules;
 CREATE POLICY "company_modules_superadmin_all"
   ON public.company_modules FOR ALL
   USING (public.my_role() = 'superadmin')
   WITH CHECK (public.my_role() = 'superadmin');
 
 -- ── invitations ───────────────────────────────────────────────
--- Qualquer um pode ler convites por token (página accept-invite sem login)
+DROP POLICY IF EXISTS "invitations_anon_token_read" ON public.invitations;
 CREATE POLICY "invitations_anon_token_read"
   ON public.invitations FOR SELECT
   USING (true);
 
--- Admin da empresa cria convites
+DROP POLICY IF EXISTS "invitations_admin_insert" ON public.invitations;
 CREATE POLICY "invitations_admin_insert"
   ON public.invitations FOR INSERT
   WITH CHECK (
@@ -107,19 +109,23 @@ CREATE POLICY "invitations_admin_insert"
   );
 
 -- ── occurrences ───────────────────────────────────────────────
+DROP POLICY IF EXISTS "occurrences_company_read" ON public.occurrences;
 CREATE POLICY "occurrences_company_read"
   ON public.occurrences FOR SELECT
   USING (company_id = public.my_company_id());
 
+DROP POLICY IF EXISTS "occurrences_company_insert" ON public.occurrences;
 CREATE POLICY "occurrences_company_insert"
   ON public.occurrences FOR INSERT
   WITH CHECK (company_id = public.my_company_id());
 
+DROP POLICY IF EXISTS "occurrences_company_update" ON public.occurrences;
 CREATE POLICY "occurrences_company_update"
   ON public.occurrences FOR UPDATE
   USING (company_id = public.my_company_id())
   WITH CHECK (company_id = public.my_company_id());
 
+DROP POLICY IF EXISTS "occurrences_admin_delete" ON public.occurrences;
 CREATE POLICY "occurrences_admin_delete"
   ON public.occurrences FOR DELETE
   USING (
@@ -128,41 +134,46 @@ CREATE POLICY "occurrences_admin_delete"
   );
 
 -- ── locais ────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "locais_company_crud" ON public.locais;
 CREATE POLICY "locais_company_crud"
   ON public.locais FOR ALL
   USING (company_id = public.my_company_id())
   WITH CHECK (company_id = public.my_company_id());
 
 -- ── funcionarios ──────────────────────────────────────────────
+DROP POLICY IF EXISTS "funcionarios_company_crud" ON public.funcionarios;
 CREATE POLICY "funcionarios_company_crud"
   ON public.funcionarios FOR ALL
   USING (company_id = public.my_company_id())
   WITH CHECK (company_id = public.my_company_id());
 
 -- ── medicos ───────────────────────────────────────────────────
+DROP POLICY IF EXISTS "medicos_company_crud" ON public.medicos;
 CREATE POLICY "medicos_company_crud"
   ON public.medicos FOR ALL
   USING (company_id = public.my_company_id())
   WITH CHECK (company_id = public.my_company_id());
 
 -- ── escalas ───────────────────────────────────────────────────
+DROP POLICY IF EXISTS "escalas_company_crud" ON public.escalas;
 CREATE POLICY "escalas_company_crud"
   ON public.escalas FOR ALL
   USING (company_id = public.my_company_id())
   WITH CHECK (company_id = public.my_company_id());
 
 -- ── feature_requests ─────────────────────────────────────────
--- Superadmin gerencia tudo
+DROP POLICY IF EXISTS "feature_requests_superadmin_all" ON public.feature_requests;
 CREATE POLICY "feature_requests_superadmin_all"
   ON public.feature_requests FOR ALL
   USING (public.my_role() = 'superadmin')
   WITH CHECK (public.my_role() = 'superadmin');
 
--- Membros da empresa criam e leem as próprias sugestões
+DROP POLICY IF EXISTS "feature_requests_company_insert" ON public.feature_requests;
 CREATE POLICY "feature_requests_company_insert"
   ON public.feature_requests FOR INSERT
   WITH CHECK (company_id = public.my_company_id());
 
+DROP POLICY IF EXISTS "feature_requests_company_read" ON public.feature_requests;
 CREATE POLICY "feature_requests_company_read"
   ON public.feature_requests FOR SELECT
   USING (company_id = public.my_company_id());
