@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import {
   UserCheck, Loader2, Clock, CheckCircle2, Volume2, AlertTriangle,
   XCircle, Flag, Search, BarChart3, Timer, Users, TrendingUp, MapPin,
-  Tv2, Plus, Trash2, ExternalLink, Copy, Check,
+  Tv2, Plus, Trash2, ExternalLink, Copy, Check, LogOut, Settings,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -261,7 +261,7 @@ function TVTab({ companyId, slug }: { companyId: string; slug: string }) {
 
 export function CheckinDashboardPage() {
   const { slug } = useParams<{ slug: string }>();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { theme } = useTenantTheme();
   const primary = theme?.primary_color ?? "#6366f1";
 
@@ -327,12 +327,23 @@ export function CheckinDashboardPage() {
             </div>
           </div>
 
-          {/* Link for patient QR */}
-          <a href={`/checkin/${slug}`} target="_blank" rel="noopener noreferrer"
-            className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl px-3 py-2 bg-white transition-colors">
-            <ExternalLink className="h-3.5 w-3.5" />
-            Totem do Paciente
-          </a>
+          <div className="flex items-center gap-2">
+            <a href={`/checkin/${slug}`} target="_blank" rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl px-3 py-2 bg-white transition-colors">
+              <ExternalLink className="h-3.5 w-3.5" />
+              Totem
+            </a>
+            {user?.role === "admin" && (
+              <Link to={`/${slug}/settings`}
+                className="p-2 rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors bg-white">
+                <Settings className="h-4 w-4" />
+              </Link>
+            )}
+            <button onClick={signOut}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 border border-slate-200 rounded-xl px-3 py-2 bg-white transition-colors">
+              <LogOut className="h-3.5 w-3.5" /> Sair
+            </button>
+          </div>
         </div>
       </header>
 
