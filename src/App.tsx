@@ -93,7 +93,7 @@ function DevRoute({ children }: { children: React.ReactNode }) {
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <PageLoader />;
   if (user) {
     if (user.role === "superadmin") return <Navigate to="/developer" replace />;
     if (user.company_slug) return <Navigate to={`/${user.company_slug}`} replace />;
