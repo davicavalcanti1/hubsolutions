@@ -202,8 +202,9 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
           module_keys:    selectedModules,
         },
       });
-      if (fnError) throw new Error(fnError.message);
-      if (data?.error) throw new Error(data.error);
+      // data pode conter o body mesmo em erro — extrai a mensagem real
+      const msg = data?.error ?? fnError?.message;
+      if (msg) throw new Error(msg);
       onCreated();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao criar empresa");
