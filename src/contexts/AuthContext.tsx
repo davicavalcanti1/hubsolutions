@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
+import type { Session } from "@supabase/supabase-js";
 
 interface AppUser {
   id: string;
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initSession();
 
     // Fase 2 — subscription para mudanças futuras (login / logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
 
       if (session?.user) {
