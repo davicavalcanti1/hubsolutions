@@ -14,13 +14,12 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey     = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const adminClient = createClient(supabaseUrl, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Get caller's JWT
+    // Extrai o sub do JWT sem chamar auth.getUser() — gateway já validou o token
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -29,13 +28,15 @@ serve(async (req) => {
       );
     }
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
-    const { data: { user: callerAuth } } = await userClient.auth.getUser();
-    if (!callerAuth) {
+    let callerId: string;
+    let callerEmail: string;
+    try {
+      const token = authHeader.replace("Bearer ", "");
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      callerId  = payload.sub;
+      callerEmail = payload.email;
+      if (!callerId) throw new Error("sub ausente");
+    } catch {
       return new Response(
         JSON.stringify({ error: "Token inválido" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -80,7 +81,7 @@ serve(async (req) => {
     }
 
     // Verify caller email matches invitation email
-    if (callerAuth.email?.toLowerCase() !== invitation.email.toLowerCase()) {
+    if (callerEmail?.toLowerCase() !== invitation.email.toLowerCase()) {
       return new Response(
         JSON.stringify({ error: "Este convite é para outro e-mail" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -91,7 +92,7 @@ serve(async (req) => {
     const { data: newUser, error: insertError } = await adminClient
       .from("users")
       .upsert({
-        supabase_user_id: callerAuth.id,
+        supabase_user_id: callerId,
         full_name,
         email:      invitation.email,
         role:       invitation.role,

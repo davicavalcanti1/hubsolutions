@@ -14,13 +14,12 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey     = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const adminClient = createClient(supabaseUrl, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Verify caller is superadmin
+    // Extrai o sub do JWT sem chamar auth.getUser() — gateway já validou o token
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -29,13 +28,13 @@ serve(async (req) => {
       );
     }
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
-    const { data: { user: callerAuth } } = await userClient.auth.getUser();
-    if (!callerAuth) {
+    let callerId: string;
+    try {
+      const token = authHeader.replace("Bearer ", "");
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      callerId = payload.sub;
+      if (!callerId) throw new Error("sub ausente");
+    } catch {
       return new Response(
         JSON.stringify({ error: "Token inválido" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -45,7 +44,7 @@ serve(async (req) => {
     const { data: callerProfile } = await adminClient
       .from("users")
       .select("role")
-      .eq("supabase_user_id", callerAuth.id)
+      .eq("supabase_user_id", callerId)
       .maybeSingle();
 
     if (callerProfile?.role !== "superadmin") {
