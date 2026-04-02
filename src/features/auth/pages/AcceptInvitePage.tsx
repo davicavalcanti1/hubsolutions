@@ -62,7 +62,7 @@ export function AcceptInvitePage() {
 
       // 2. Aceita o convite via Edge Function
       const { error: fnError } = await supabase.functions.invoke("accept-invite", {
-        body: { token: inviteToken, full_name: fullName },
+        body: { token: inviteToken, full_name: fullName, supabase_user_id: data.user?.id },
       });
       if (fnError) throw new Error(fnError.message);
 

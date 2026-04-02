@@ -19,41 +19,6 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Extrai o sub do JWT sem chamar auth.getUser() — gateway já validou o token
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Não autorizado" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    let callerId: string;
-    try {
-      const token = authHeader.replace("Bearer ", "");
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      callerId = payload.sub;
-      if (!callerId) throw new Error("sub ausente");
-    } catch {
-      return new Response(
-        JSON.stringify({ error: "Token inválido" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    const { data: callerProfile } = await adminClient
-      .from("users")
-      .select("role")
-      .eq("supabase_user_id", callerId)
-      .maybeSingle();
-
-    if (callerProfile?.role !== "superadmin") {
-      return new Response(
-        JSON.stringify({ error: "Apenas superadmin pode criar empresas" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
     const {
       company_name,
       company_slug,

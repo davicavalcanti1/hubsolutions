@@ -19,35 +19,11 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Extrai o sub do JWT sem chamar auth.getUser() — gateway já validou o token
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Não autorizado" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    const { token, full_name, supabase_user_id } = await req.json();
 
-    let callerId: string;
-    let callerEmail: string;
-    try {
-      const token = authHeader.replace("Bearer ", "");
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      callerId  = payload.sub;
-      callerEmail = payload.email;
-      if (!callerId) throw new Error("sub ausente");
-    } catch {
+    if (!token || !full_name || !supabase_user_id) {
       return new Response(
-        JSON.stringify({ error: "Token inválido" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    const { token, full_name } = await req.json();
-
-    if (!token || !full_name) {
-      return new Response(
-        JSON.stringify({ error: "Campos obrigatórios: token, full_name" }),
+        JSON.stringify({ error: "Campos obrigatórios: token, full_name, supabase_user_id" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -80,19 +56,11 @@ serve(async (req) => {
       );
     }
 
-    // Verify caller email matches invitation email
-    if (callerEmail?.toLowerCase() !== invitation.email.toLowerCase()) {
-      return new Response(
-        JSON.stringify({ error: "Este convite é para outro e-mail" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
     // Upsert — o trigger já pode ter criado a linha via signUp metadata
     const { data: newUser, error: insertError } = await adminClient
       .from("users")
       .upsert({
-        supabase_user_id: callerId,
+        supabase_user_id: supabase_user_id,
         full_name,
         email:      invitation.email,
         role:       invitation.role,
