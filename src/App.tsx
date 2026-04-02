@@ -1,4 +1,21 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, Component, type ReactNode } from "react";
+
+// Recarrega a página quando um chunk lazy não é encontrado (stale deploy)
+class ChunkErrorBoundary extends Component<{ children: ReactNode }, { error: boolean }> {
+  state = { error: false };
+  static getDerivedStateFromError() { return { error: true }; }
+  componentDidCatch(err: Error) {
+    if (err.message.includes("Failed to fetch dynamically imported module") ||
+        err.message.includes("Loading chunk") ||
+        err.message.includes("Importing a module script failed")) {
+      window.location.reload();
+    }
+  }
+  render() {
+    if (this.state.error) return null;
+    return this.props.children;
+  }
+}
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -104,6 +121,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
+    <ChunkErrorBoundary>
     <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Public */}
@@ -141,6 +159,7 @@ function AppRoutes() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
+    </ChunkErrorBoundary>
   );
 }
 
