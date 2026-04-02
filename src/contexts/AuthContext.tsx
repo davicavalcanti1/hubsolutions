@@ -67,11 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Safety: garante que loading resolve mesmo se onAuthStateChange demorar
-    const safety = setTimeout(() => setLoading(false), 8000);
+    // Safety: resolve o loading mesmo se onAuthStateChange ou loadProfile travarem
+    const safety = setTimeout(() => setLoading(false), 6000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      clearTimeout(safety);
       try {
         if (session) {
           await loadProfile();
@@ -81,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch {
         setUser(null);
       } finally {
+        clearTimeout(safety); // cancela só depois de tudo terminar
         setLoading(false);
       }
     });
