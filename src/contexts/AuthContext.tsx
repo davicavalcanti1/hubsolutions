@@ -69,8 +69,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Carga inicial via getSession — confiável e imediato
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const timeout = <T,>(ms: number, fallback: T): Promise<T> =>
+      new Promise(resolve => setTimeout(() => resolve(fallback), ms));
+
+    // Carga inicial com timeout de 4s — getSession pode travar se token precisar de refresh
+    Promise.race([
+      supabase.auth.getSession(),
+      timeout(4000, { data: { session: null } } as Awaited<ReturnType<typeof supabase.auth.getSession>>),
+    ]).then(async ({ data: { session } }) => {
       if (!mounted) return;
       try {
         if (session) await loadProfile();
@@ -82,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Subscription apenas para mudanças futuras (login / logout)
+    // Subscription para mudanças futuras (login / logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
       try {
